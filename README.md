@@ -1,4 +1,5 @@
-GPA Tracker
+GPA Tracker please open the release to download the correct project
+
 
 This is a Java project that helps students track their GPA. It has a login system, can send emails, and also lets you sign in with Google.
 
