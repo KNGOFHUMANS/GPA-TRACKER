@@ -1,4 +1,4 @@
-# GPAManagerApp
+# - GPAManagerApp — Java/Swing desktop app for academic GPA tracking, Google OAuth sign-in, email-based account recovery, and packaged Windows distribution.
 
 A desktop Java application to track college classes, assignments and GPA with a modern, responsive Swing UI, Google Sign-In support, and password-reset via email. This repository contains the full source, packaged app image, and release artifacts.
 
