@@ -141,18 +141,12 @@ Notes:
 - Use `RunWithTrace` during development to capture uncaught exceptions from the Swing EDT and other threads.
 - Add unit tests for GPA calculations and for the MailSender behavior to improve reliability.
 
-## Suggested resume bullets
-
-Use one or more of these on your resume (adjust wording to match your role and contribution):
-
 - Implemented `GPAManagerApp`, a desktop Java application that enables students to track classes, assignments, and compute GPA with a polished Swing UI and local JSON persistence.
 - Integrated Google OAuth desktop flow and token persistence for seamless "Sign in with Google" onboarding.
 - Designed a secure password-reset workflow using emailed one-time verification codes; added retry logic and only persist tokens after confirmed delivery.
 - Built a robust email subsystem with Jakarta Mail supporting STARTTLS and SMTPS fallback, environment-variable and file-based credential resolution, and runtime diagnostics.
 - Packaged the application with `jpackage` into a Windows app-image and prepared GitHub Release artifacts for distribution.
 - Modernized the Swing UX with custom-drawn components, rounded-card layout, placeholder inputs, and animated buttons.
-
-## Example one-liner for resume header
 
 - GPAManagerApp — Java/Swing desktop app for academic GPA tracking, Google OAuth sign-in, email-based account recovery, and packaged Windows distribution.
 
@@ -161,21 +155,14 @@ Use one or more of these on your resume (adjust wording to match your role and c
 - Open an issue describing changes you plan to make.
 - Create a feature branch, implement changes, and submit a pull request.
 
-## License
-
-- (Add your preferred license here; MIT is a common choice.)
 
 ## Contact
 
-- Add a contact email or your GitHub profile link if you'd like others to reach out.
-
+Malikgjones0415@gmail.com
 ---
 
 If you'd like, I can also:
 
-- Create a shorter `README-short.md` for the GitHub front page.
-- Add a `RESUME.md` with only the resume-ready bullets and a 2–3 line elevator pitch.
-- Insert a screenshot into the release assets and update the release notes to include it.
 
-Which of those would you like next?
+
 
