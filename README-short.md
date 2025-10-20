@@ -23,8 +23,6 @@ Notes
 - Data persisted to `data/` (users.json, user_data.json).
 - Release asset: `release/GPAManagerApp-ready.zip` (EXE + runtime + client_secret.json + tokens/).
 
-Resume one-liner
-- GPAManagerApp — Java/Swing app for GPA tracking with Google OAuth and email-based account recovery.
 
 Contact
 - See repository for full README and release notes.
