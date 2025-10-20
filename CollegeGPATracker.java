@@ -40,10 +40,14 @@ public class CollegeGPATracker { // main application class
 
     private static void setApplicationIcon(JFrame frame) {
         try {
-            ImageIcon icon = new ImageIcon("app-icon.png"); // You can also use .ico files
+            // Try to load external icon file first
+            ImageIcon icon = new ImageIcon("app-icon.png");
             if (icon.getIconWidth() > 0) {
                 frame.setIconImage(icon.getImage());
-            } else {
+                return; // Successfully loaded external icon
+            }
+            // If external file not found, use programmatic generation
+            {
                 // Fallback: create simple red graduation cap icon
                 BufferedImage image = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D g2d = image.createGraphics();
