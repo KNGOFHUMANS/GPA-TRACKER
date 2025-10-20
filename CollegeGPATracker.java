@@ -108,8 +108,6 @@ public class CollegeGPATracker { // main application class
     // Design tokens (hex values)
     private static final Color LEFT_TOP = new Color(0x14B8A6);      // teal
     private static final Color LEFT_BOTTOM = new Color(0x6440FF);   // purple
-    private static final Color RIGHT_BG = new Color(0xF6F7F9);      // soft off-white
-    private static final Color CARD_BG = new Color(0xFAFAFC);       // card background
     // Dark theme tokens (login full-screen)
     private static final Color RIGHT_BG_DARK = new Color(0x121418); // deep charcoal
     private static final Color CARD_BG_DARK = new Color(0x23272B);  // card dark surface
