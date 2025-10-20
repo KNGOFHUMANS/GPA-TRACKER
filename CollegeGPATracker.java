@@ -9,6 +9,7 @@ import java.awt.*; // entire awt library
 import java.awt.event.*; // entire awt event library
 import java.awt.geom.Arc2D; // only Arc2D
 import java.awt.geom.Ellipse2D; // only Ellipse2D
+import java.awt.image.BufferedImage; // for custom icon creation
 import java.util.List; // only List
 import java.util.*; // entire util library
 
@@ -36,6 +37,73 @@ public class CollegeGPATracker { // main application class
     private static final String USERNAME_CHANGES_FILE = DATA_DIR + File.separator + "username_changes.json";// username changes file
     private static final String RESET_CODES_FILE = DATA_DIR + File.separator + "reset_tokens.json"; // reset tokens file
     private static final Gson gson = new Gson(); // Gson instance
+
+    private static void setApplicationIcon(JFrame frame) {
+        try {
+            ImageIcon icon = new ImageIcon("app-icon.png"); // You can also use .ico files
+            if (icon.getIconWidth() > 0) {
+                frame.setIconImage(icon.getImage());
+            } else {
+                // Fallback: create simple red graduation cap icon
+                BufferedImage image = new BufferedImage(256, 256, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g2d = image.createGraphics();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                
+                // Clear background (transparent)
+                g2d.setColor(new Color(0, 0, 0, 0));
+                g2d.fillRect(0, 0, 256, 256);
+                
+                // Colors for the graduation cap
+                Color redCap = new Color(220, 38, 38);    // Nice red for the cap
+                Color darkRed = new Color(153, 27, 27);   // Darker red for depth
+                Color black = new Color(30, 30, 30);      // Black for tassel
+                Color gold = new Color(251, 191, 36);     // Gold for tassel button
+                
+                // Draw graduation cap base (the part that sits on head)
+                g2d.setColor(darkRed);
+                g2d.fillOval(64, 140, 128, 60); // Base of cap (ellipse)
+                
+                // Draw graduation cap top (mortarboard/square top)
+                g2d.setColor(redCap);
+                // Create a perspective square (slightly rotated)
+                int[] capX = {40, 216, 200, 56};
+                int[] capY = {100, 80, 120, 140};
+                g2d.fillPolygon(capX, capY, 4);
+                
+                // Add some depth with darker edge
+                g2d.setColor(darkRed);
+                g2d.setStroke(new BasicStroke(3));
+                g2d.drawPolygon(capX, capY, 4);
+                
+                // Draw tassel cord
+                g2d.setColor(black);
+                g2d.setStroke(new BasicStroke(4));
+                g2d.drawLine(200, 100, 220, 140);
+                
+                // Draw tassel
+                g2d.setStroke(new BasicStroke(2));
+                // Multiple tassel strands
+                for (int i = 0; i < 8; i++) {
+                    int x = 215 + (i - 4) * 2;
+                    g2d.drawLine(220, 140, x, 180);
+                }
+                
+                // Draw gold button/decoration on top
+                g2d.setColor(gold);
+                g2d.fillOval(125, 95, 12, 12);
+                
+                // Add highlight to make it look more 3D
+                g2d.setColor(new Color(255, 255, 255, 100));
+                g2d.fillOval(70, 145, 40, 15);
+                
+                g2d.dispose();
+                frame.setIconImage(image);
+            }
+        } catch (Exception e) {
+            System.err.println("Could not set application icon: " + e.getMessage());
+        }
+    }
 
     // Design tokens (hex values)
     private static final Color LEFT_TOP = new Color(0x14B8A6);      // teal
@@ -90,6 +158,9 @@ public class CollegeGPATracker { // main application class
     frame.setSize(1000, 560);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
+        
+        // Set custom application icon
+        setApplicationIcon(frame);
 
     // prettier left panel with teal purple gradient and larger title
     JPanel leftPanel = new GradientPanel(LEFT_TOP, LEFT_BOTTOM);
@@ -268,11 +339,11 @@ public class CollegeGPATracker { // main application class
     loginBox.add(Box.createVerticalGlue());
 
     // wrap visually with a rounded card
-    RoundedCard card = new RoundedCard(12, CARD_BG, new Color(200,200,210,110));
+    RoundedCard card = new RoundedCard(12, CARD_BG_DARK, new Color(50,50,60,110));
     card.setLayout(new GridBagLayout());
     card.add(loginBox);
     JPanel wrapper = new JPanel(new GridBagLayout());
-    wrapper.setBackground(RIGHT_BG);
+    wrapper.setBackground(RIGHT_BG_DARK);
     wrapper.add(card);
     // Ensure the right panel contains only the centered login card.
     // Some earlier code added multiple components directly to rightPanel which
@@ -447,6 +518,9 @@ public class CollegeGPATracker { // main application class
         frame.setSize(1150, 720);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
+        
+        // Set custom application icon
+        setApplicationIcon(frame);
 
         JMenuBar menuBar = new JMenuBar();
         JMenu userMenu = new JMenu("User");
