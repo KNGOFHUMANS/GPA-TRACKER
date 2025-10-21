@@ -1,0 +1,37 @@
+# Google OAuth Secrets
+client_secret.json
+**/client_secret.json
+
+# Compiled Java classes
+*.class
+
+# Log files
+*.log
+run-*.log
+
+# Package Files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build directories
+build/
+target/
+out/production/
