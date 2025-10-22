@@ -1,0 +1,32 @@
+# OAuth credentials - never commit these!
+client_secret.json
+
+# Compiled Java classes
+*.class
+
+# JAR files (but keep the final release)
+*.jar
+!GPATracker-PORT-FIXED.zip
+
+# Build artifacts
+app-image*/
+custom-runtime*/
+jpack-input*/
+minimal-jre/
+out/
+
+# IDE files
+.vscode/settings.json
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# User data
+data/
+tokens/
+
+# Temporary files
+*.tmp
+*.temp
