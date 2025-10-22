@@ -80,8 +80,9 @@ public class CollegeGPATracker {
     
     // Light theme colors
     private static final Color RIGHT_BG = new Color(0xF6F7F9);      // Soft off-white background
+    @SuppressWarnings("unused")
     private static final Color CARD_BG = new Color(0xFAFAFC);       // Card background color
-    
+
     // Dark theme colors for login screen
     private static final Color RIGHT_BG_DARK = new Color(0x121418); // Deep charcoal background
     private static final Color CARD_BG_DARK = new Color(0x23272B);  // Dark card surface color
@@ -516,10 +517,41 @@ public class CollegeGPATracker {
                        } catch (Exception e) {
                            System.err.println("DEBUG: Google Sign-In error details:");
                            e.printStackTrace();
-                           JOptionPane.showMessageDialog(frame, 
-                               "Google Sign-In failed: " + e.getMessage() + 
-                               "\n\nPlease check:\n1. Internet connection\n2. Browser opens for authorization\n3. Console output for detailed error", 
-                               "Sign-In Failed", JOptionPane.ERROR_MESSAGE);
+                           
+                           String errorMsg = e.getMessage();
+                           if (errorMsg != null && errorMsg.contains("OAuth credentials not configured")) {
+                               // OAuth configuration error - show detailed setup instructions
+                               JOptionPane.showMessageDialog(frame, 
+                                   "Google Sign-In Setup Required\n\n" +
+                                   "OAuth credentials are not configured properly.\n\n" +
+                                   "Setup Instructions:\n" +
+                                   "1. Go to https://console.cloud.google.com/\n" +
+                                   "2. Create a new project or select existing\n" +
+                                   "3. Enable Google+ API and Gmail API\n" +
+                                   "4. Create OAuth 2.0 credentials (Desktop application)\n" +
+                                   "5. Download the JSON file and rename to 'client_secret.json'\n" +
+                                   "6. Place it in the application directory\n\n" +
+                                   "See SETUP.md for detailed instructions.", 
+                                   "OAuth Setup Required", JOptionPane.WARNING_MESSAGE);
+                           } else if (errorMsg != null && errorMsg.contains("400")) {
+                               // Google API 400 error - likely OAuth config issue
+                               JOptionPane.showMessageDialog(frame,
+                                   "Google Authentication Error (400)\n\n" +
+                                   "This usually indicates OAuth configuration issues:\n" +
+                                   "• Invalid client ID or secret\n" +
+                                   "• Redirect URI mismatch\n" +
+                                   "• Project not properly configured\n\n" +
+                                   "Please check your client_secret.json file and\n" +
+                                   "Google Cloud Console project settings.\n\n" +
+                                   "See SETUP.md for detailed instructions.",
+                                   "Authentication Failed", JOptionPane.ERROR_MESSAGE);
+                           } else {
+                               // General error
+                               JOptionPane.showMessageDialog(frame, 
+                                   "Google Sign-In failed: " + errorMsg + 
+                                   "\n\nPlease check:\n1. Internet connection\n2. Browser opens for authorization\n3. Console output for detailed error\n4. OAuth credentials in client_secret.json", 
+                                   "Sign-In Failed", JOptionPane.ERROR_MESSAGE);
+                           }
                        }
                    }
                };
@@ -1106,10 +1138,10 @@ public class CollegeGPATracker {
 
     private static void applyTheme(java.awt.Container root) {
         if (darkMode) {
-            root.setBackground(new Color(35, 35, 35));
+            root.setBackground(RIGHT_BG_DARK);
             if (overallGpaLabel != null) overallGpaLabel.setForeground(Color.WHITE);
         } else {
-            root.setBackground(Color.WHITE);
+            root.setBackground(RIGHT_BG);
             if (overallGpaLabel != null) overallGpaLabel.setForeground(Color.BLACK);
         }
     }

@@ -1,6 +1,7 @@
 # OAuth credentials - never commit actual credentials!
-# client_secret.json should contain template values only
-# Users must replace with their own credentials locally
+# Keep the template, but ignore any actual credential files
+client_secret.json
+!client_secret.json.template
 
 # Compiled Java classes
 *.class
@@ -16,6 +17,9 @@ jpack-input*/
 minimal-jre/
 out/
 
+# OAuth tokens directory (contains user's actual tokens)
+tokens/
+
 # IDE files
 .vscode/settings.json
 .idea/
@@ -26,7 +30,6 @@ Thumbs.db
 
 # User data
 data/
-tokens/
 
 # Temporary files
 *.tmp

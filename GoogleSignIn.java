@@ -92,6 +92,20 @@ public class GoogleSignIn {
         GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(
                         JSON_FACTORY, new InputStreamReader(in, StandardCharsets.UTF_8));
         System.out.println("DEBUG: Client secrets loaded successfully");
+        
+        // Validate that client secrets are properly configured (not template values)
+        String clientId = clientSecrets.getInstalled().getClientId();
+        String clientSecret = clientSecrets.getInstalled().getClientSecret();
+        
+        if (clientId == null || clientId.contains("YOUR_CLIENT_ID_HERE") || 
+            clientSecret == null || clientSecret.contains("YOUR_CLIENT_SECRET_HERE")) {
+            throw new RuntimeException("OAuth credentials not configured! Please replace template values in " + CLIENT_SECRET_FILE + " with your actual Google OAuth credentials.\n\n" +
+                "Setup instructions:\n" +
+                "1. Go to https://console.cloud.google.com/\n" +
+                "2. Create a project and enable Google+ API\n" +
+                "3. Create OAuth 2.0 credentials (Desktop application)\n" +
+                "4. Download the JSON file and replace " + CLIENT_SECRET_FILE);
+        }
 
         // Determine tokens directory near the application so installed apps store tokens next to app
         File tokenStoreDir = new File(TOKENS_DIR);
