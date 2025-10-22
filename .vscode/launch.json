@@ -1,16 +1,18 @@
 {
-    "version": "0.2.0",
     "configurations": [
         {
             "type": "java",
-            "name": "Launch CollegeGPATracker",
+            "name": "TestGoogleAuth",
+            "request": "launch",
+            "mainClass": "TestGoogleAuth",
+            "projectName": "GPAManagerApp_5ea180c2"
+        },
+        {
+            "type": "java",
+            "name": "CollegeGPATracker",
             "request": "launch",
             "mainClass": "CollegeGPATracker",
-            "projectName": "GPAManagerApp",
-            "classPaths": [
-                "${workspaceFolder}/src",
-                "${workspaceFolder}/libs/*"
-            ]
+            "projectName": "GPAManagerApp_5ea180c2"
         }
     ]
 }

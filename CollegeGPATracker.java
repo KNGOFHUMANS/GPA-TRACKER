@@ -1,134 +1,191 @@
-import javax.swing.*; // entire swing library
-import javax.swing.border.EmptyBorder; // only border
-import javax.swing.table.DefaultTableModel; // table model
-import javax.swing.plaf.basic.BasicProgressBarUI; // progress bar UI
-import javax.swing.JComponent; // only JComponent
-import javax.swing.Box; // only Box
+// Import statements - bringing in external libraries and classes needed for the application
 
-import java.awt.*; // entire awt library
-import java.awt.event.*; // entire awt event library
-import java.awt.geom.Arc2D; // only Arc2D
-import java.awt.geom.Ellipse2D; // only Ellipse2D
-import java.util.List; // only List
-import java.util.*; // entire util library
+// Swing imports - for creating the graphical user interface (GUI)
+import javax.swing.*; // Imports all Swing classes (JFrame, JButton, JLabel, etc.)
+import javax.swing.border.EmptyBorder; // For creating empty borders around components
+import javax.swing.table.DefaultTableModel; // For managing data in JTable components
+import javax.swing.plaf.basic.BasicProgressBarUI; // For customizing progress bar appearance
+import javax.swing.JComponent; // Base class for all Swing components
+import javax.swing.Box; // For creating invisible spacing components
 
-import java.io.File; // only File
-import java.io.FileReader; // only FileReader
-import java.io.FileWriter; // only FileWriter
-import java.io.IOException; // only IOException
+// AWT (Abstract Window Toolkit) imports - for graphics, colors, fonts, and layout
+import java.awt.*; // Imports all AWT classes (Color, Font, Graphics, etc.)
+import java.awt.event.*; // For handling user interactions (clicks, key presses, etc.)
+import java.awt.geom.Arc2D; // For drawing pie chart arcs in the grade breakdown
+import java.awt.geom.Ellipse2D; // For drawing circles in the pie chart legend
 
-import com.google.gson.Gson; // only Gson
-import com.google.gson.reflect.TypeToken; // only TypeToken
+// Java utility imports - for collections and data structures
+import java.util.List; // For using List interface (ordered collections)
+import java.util.*; // Imports all utility classes (Map, HashMap, ArrayList, etc.)
 
-public class CollegeGPATracker { // main application class
-    // username -> [password, email]
-    private static Map<String, String[]> users = new HashMap<>(); // username -> [password, email]
-    private static Map<String, Long> lastUsernameChange = new HashMap<>(); // username -> timestamp
-    private static String currentUser; // currently logged-in user
+// File I/O imports - for reading and writing data to files
+import java.io.File; // For working with file system paths
+import java.io.FileReader; // For reading text files
+import java.io.FileWriter; // For writing text files
+import java.io.IOException; // Exception thrown when file operations fail
 
-    // user -> semester(int) -> className -> ClassData
-    private static Map<String, Map<Integer, Map<String, ClassData>>> userData = new HashMap<>(); // user -> semester(int) -> className -> ClassData
-    private static boolean darkMode = false; // dark mode flag
+// Google Gson imports - for converting objects to/from JSON format
+import com.google.gson.Gson; // Main class for JSON serialization/deserialization
+import com.google.gson.reflect.TypeToken; // For handling complex generic types in JSON
 
-    private static final String DATA_DIR = "data"; // data directory
-    private static final String USERS_FILE = DATA_DIR + File.separator + "users.json"; // users file
-    private static final String USERDATA_FILE = DATA_DIR + File.separator + "user_data.json"; // user data file
-    private static final String USERNAME_CHANGES_FILE = DATA_DIR + File.separator + "username_changes.json";// username changes file
-    private static final String RESET_CODES_FILE = DATA_DIR + File.separator + "reset_tokens.json"; // reset tokens file
-    private static final Gson gson = new Gson(); // Gson instance
+/**
+ * CollegeGPATracker - Main application class for tracking college GPA
+ * This class manages user authentication, course data, and GPA calculations
+ */
+public class CollegeGPATracker {
+    
+    // ===== DATA STORAGE VARIABLES =====
+    // Map that stores all user accounts: username -> [password, email]
+    // Each user has a String array where [0] = password, [1] = email address
+    private static Map<String, String[]> users = new HashMap<>();
+    
+    // Tracks when users last changed their username (for 15-day restriction)
+    // Maps username -> timestamp (milliseconds since epoch)
+    private static Map<String, Long> lastUsernameChange = new HashMap<>();
+    
+    // Stores the currently logged-in user's username
+    private static String currentUser;
 
-    // Design tokens (hex values)
-    private static final Color LEFT_TOP = new Color(0x14B8A6);      // teal
-    private static final Color LEFT_BOTTOM = new Color(0x6440FF);   // purple
-    private static final Color RIGHT_BG = new Color(0xF6F7F9);      // soft off-white
-    private static final Color CARD_BG = new Color(0xFAFAFC);       // card background
-    // Dark theme tokens (login full-screen)
-    private static final Color RIGHT_BG_DARK = new Color(0x121418); // deep charcoal
-    private static final Color CARD_BG_DARK = new Color(0x23272B);  // card dark surface
-    private static final Color INPUT_BG_DARK = new Color(0x1E2225); // input field dark
-    private static final Color INPUT_BORDER_DARK = new Color(0x2E3438);
-    private static final Color PRIMARY_DARK = new Color(0x2F80ED);
+    // Complex nested data structure for storing all user academic data:
+    // user -> semester(1-4) -> className -> ClassData object
+    // This allows each user to have 4 semesters, each with multiple classes
+    private static Map<String, Map<Integer, Map<String, ClassData>>> userData = new HashMap<>();
+    
+    // Boolean flag to track if dark mode is enabled for the UI
+    private static boolean darkMode = false;
 
+    // ===== FILE PATHS AND CONSTANTS =====
+    // Directory name where all data files are stored
+    private static final String DATA_DIR = "data";
+    
+    // Full path to the JSON file storing user account information
+    private static final String USERS_FILE = DATA_DIR + File.separator + "users.json";
+    
+    // Full path to the JSON file storing all academic data
+    private static final String USERDATA_FILE = DATA_DIR + File.separator + "user_data.json";
+    
+    // Full path to file tracking username change timestamps
+    private static final String USERNAME_CHANGES_FILE = DATA_DIR + File.separator + "username_changes.json";
+    
+    // Full path to file storing password reset tokens
+    private static final String RESET_CODES_FILE = DATA_DIR + File.separator + "reset_tokens.json";
+    
+    // Gson instance for converting Java objects to/from JSON format
+    private static final Gson gson = new Gson();
+
+    // ===== UI COLOR SCHEME =====
+    // Left gradient panel colors (teal to purple gradient)
+    private static final Color LEFT_TOP = new Color(0x14B8A6);      // Teal color for top of gradient
+    private static final Color LEFT_BOTTOM = new Color(0x6440FF);   // Purple color for bottom of gradient
+    
+    // Light theme colors
+    private static final Color RIGHT_BG = new Color(0xF6F7F9);      // Soft off-white background
+    private static final Color CARD_BG = new Color(0xFAFAFC);       // Card background color
+    
+    // Dark theme colors for login screen
+    private static final Color RIGHT_BG_DARK = new Color(0x121418); // Deep charcoal background
+    private static final Color CARD_BG_DARK = new Color(0x23272B);  // Dark card surface color
+    private static final Color INPUT_BG_DARK = new Color(0x1E2225); // Dark input field background
+    private static final Color INPUT_BORDER_DARK = new Color(0x2E3438); // Dark input field border
+    private static final Color PRIMARY_DARK = new Color(0x2F80ED);  // Primary blue color for buttons
+
+    // Label that displays the overall GPA on the dashboard
     private static JLabel overallGpaLabel;
 
-    // ===== CLASS DATA =====
+    // ===== INNER CLASSES FOR DATA STRUCTURE =====
+    
+    /**
+     * ClassData - Stores all information about a single class/course
+     * Contains assignments grouped by category, weights for each category,
+     * and historical performance data for trend analysis
+     */
     static class ClassData {
+        // Maps category name (Homework, Exam, Project) to list of assignments in that category
         Map<String, List<Assignment>> assignments = new HashMap<>();
+        
+        // Maps category name to its weight percentage (must total 100%)
         Map<String, Integer> weights = new HashMap<>();
+        
+        // Historical list of class percentage scores for trend tracking
         List<Double> historyPercent = new ArrayList<>();
-        int credits = 3; // default credit hours per class
-// default categories and weights
+        
+        // Number of credit hours this class is worth (affects overall GPA calculation)
+        int credits = 3; // Default to 3 credit hours per class
+
+        /**
+         * Constructor - Sets up default categories and weights for a new class
+         * Creates three default categories: Homework (40%), Exam (40%), Project (20%)
+         */
         public ClassData() {
+            // Initialize empty assignment lists for each category
             assignments.put("Homework", new ArrayList<>());
             assignments.put("Exam", new ArrayList<>());
             assignments.put("Project", new ArrayList<>());
-            weights.put("Homework", 40);
-            weights.put("Exam", 40);
-            weights.put("Project", 20);
+            
+            // Set default weight distribution (totals 100%)
+            weights.put("Homework", 40);  // Homework worth 40% of grade
+            weights.put("Exam", 40);      // Exams worth 40% of grade
+            weights.put("Project", 20);   // Projects worth 20% of grade
         }
     }
-// ===== ASSIGNMENT DATA =====
+    
+    /**
+     * Assignment - Represents a single assignment/test/project
+     * Simple data class holding the assignment's name, score, and category
+     */
     static class Assignment {
-        String name; double score; String category;
+        String name;     // Name of the assignment (e.g., "Homework 1", "Midterm Exam")
+        double score;    // Score as a percentage (0-100)
+        String category; // Which category this belongs to (Homework, Exam, Project)
+        
+        /**
+         * Constructor - Creates a new assignment with the given details
+         */
         Assignment(String name, double score, String category) {
-            this.name = name; this.score = score; this.category = category;
+            this.name = name;         // Store assignment name
+            this.score = score;       // Store percentage score
+            this.category = category; // Store which category it belongs to
         }
     }
-// ===== MAIN METHOD =====
+    // ===== APPLICATION ENTRY POINT =====
+    
+    /**
+     * main - Entry point for the application
+     * Sets up data directories, loads saved data, and launches the login UI
+     */
     public static void main(String[] args) {
-        ensureDataDir();
-        loadUsers();
-        loadAllUserData();
-        PasswordResetStore.init(RESET_CODES_FILE);
+        ensureDataDir();                              // Create data directory if it doesn't exist
+        loadUsers();                                  // Load user accounts from JSON file
+        loadAllUserData();                           // Load all academic data from JSON file
+        PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
+        
+        // Launch the GUI on the Event Dispatch Thread (required for Swing)
         SwingUtilities.invokeLater(CollegeGPATracker::showLoginUI);
     }
 
     // ===== LOGIN PAGE =====
     private static void showLoginUI() {
-        // Normal login UI — no startup mail configuration prompt
-    JFrame frame = new JFrame("Login - GPA Tracker");
-    frame.setSize(1000, 560);
+        // Modern login UI with gradient background and card-style form
+        JFrame frame = new JFrame("Login - GPA Tracker");
+        frame.setSize(1000, 560);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
 
-    // prettier left panel with teal purple gradient and larger title
-    JPanel leftPanel = new GradientPanel(LEFT_TOP, LEFT_BOTTOM);
+        // Left panel with gradient background and title
+        JPanel leftPanel = new GradientPanel(LEFT_TOP, LEFT_BOTTOM);
         leftPanel.setPreferredSize(new Dimension(420, 0));
         JLabel msg = new JLabel("<html><center>🎓<br><span style='font-size:20pt'>Your College<br>GPA Tracker</span></center></html>", SwingConstants.CENTER);
         msg.setFont(new Font("SansSerif", Font.BOLD, 28));
         msg.setForeground(Color.WHITE);
         leftPanel.setLayout(new BorderLayout());
         leftPanel.add(msg, BorderLayout.CENTER);
-// add some padding
         leftPanel.setBorder(new EmptyBorder(0, 20, 0, 20));
-    JPanel rightPanel = new JPanel(new GridBagLayout());
-    rightPanel.setBackground(RIGHT_BG_DARK);
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
-    // login form elements
-    JLabel loginLabel = new JLabel("Login");
-    loginLabel.setFont(new Font("SansSerif", Font.BOLD, 24));
-    loginLabel.setForeground(Color.WHITE);
-    rightPanel.add(loginLabel, gbc);
-    gbc.gridy++;
-    JTextField usernameField = new JTextField(20);
-    usernameField.setBorder(BorderFactory.createLineBorder(Color.WHITE));
-    rightPanel.add(usernameField, gbc);
-    gbc.gridy++;
-    JPasswordField passwordField = new JPasswordField(20);
-    passwordField.setBorder(BorderFactory.createLineBorder(Color.WHITE));
-    rightPanel.add(passwordField, gbc);
-    gbc.gridy++;
-    JButton loginButton = new JButton("Login");
-    loginButton.setBackground(new Color(0, 150, 136));
-    loginButton.setForeground(Color.WHITE);
-    rightPanel.add(loginButton, gbc);
-    gbc.gridy++;
-    JButton registerButton = new JButton("Register");
-    registerButton.setBackground(new Color(0, 150, 136));
-    registerButton.setForeground(Color.WHITE);
-    rightPanel.add(registerButton, gbc);
-    // Card-style login box (stacked, centered)
+
+        // Right panel with dark background for the login form
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.setBackground(RIGHT_BG_DARK);
+
+        // Card-style login box (stacked, centered)
     JPanel loginBox = new JPanel();
     loginBox.setLayout(new BoxLayout(loginBox, BoxLayout.Y_AXIS));
     loginBox.setBackground(CARD_BG_DARK);
@@ -239,14 +296,18 @@ public class CollegeGPATracker { // main application class
 
     // assemble with spacing to match the provided design
     loginBox.add(Box.createVerticalGlue());
+    
+    // Title spacing
     JLabel title = new JLabel("", SwingConstants.CENTER);
-    title.setPreferredSize(new Dimension(0,8));
+    title.setPreferredSize(new Dimension(0, 8));
     loginBox.add(title);
-    userRow.setBackground(new Color(250,250,250));
-    passRow.setBackground(new Color(250,250,250));
-    // align rows
+    
+    // Input rows with consistent backgrounds
+    userRow.setBackground(INPUT_BG_DARK);
+    passRow.setBackground(INPUT_BG_DARK);
     userRow.setAlignmentX(Component.CENTER_ALIGNMENT);
     passRow.setAlignmentX(Component.CENTER_ALIGNMENT);
+    
     loginBox.add(userRow);
     loginBox.add(Box.createVerticalStrut(12));
     loginBox.add(passRow);
@@ -256,9 +317,10 @@ public class CollegeGPATracker { // main application class
     loginBox.add(signupBtn);
     loginBox.add(Box.createVerticalStrut(8));
     loginBox.add(forgotBtn);
+    
     JLabel mailHelp = new JLabel("Need help with email?", SwingConstants.CENTER);
     mailHelp.setFont(mailHelp.getFont().deriveFont(Font.PLAIN, 11f));
-    mailHelp.setForeground(new Color(180,180,180));
+    mailHelp.setForeground(new Color(180, 180, 180));
     mailHelp.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     mailHelp.setToolTipText("Use a Gmail App Password (create one in your Google Account under Security → App passwords).\nYou can enter it once in the prompt; optionally saved locally (plaintext).");
     mailHelp.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -268,20 +330,21 @@ public class CollegeGPATracker { // main application class
     loginBox.add(Box.createVerticalGlue());
 
     // wrap visually with a rounded card
-    RoundedCard card = new RoundedCard(12, CARD_BG, new Color(200,200,210,110));
+    RoundedCard card = new RoundedCard(12, CARD_BG_DARK, new Color(200,200,210,110));
     card.setLayout(new GridBagLayout());
     card.add(loginBox);
+    
     JPanel wrapper = new JPanel(new GridBagLayout());
-    wrapper.setBackground(RIGHT_BG);
-    wrapper.add(card);
-    // Ensure the right panel contains only the centered login card.
-    // Some earlier code added multiple components directly to rightPanel which
-    // caused layout collisions. Clear them and reconfigure the layout so the
-    // card is centered and sized consistently.
-    rightPanel.removeAll();
-    rightPanel.setLayout(new GridBagLayout());
-    rightPanel.setBackground(RIGHT_BG_DARK);
-    rightPanel.add(wrapper);
+    wrapper.setBackground(RIGHT_BG_DARK);
+    GridBagConstraints wrapperGbc = new GridBagConstraints();
+    wrapperGbc.gridx = 0;
+    wrapperGbc.gridy = 0;
+    wrapperGbc.weightx = 1.0;
+    wrapperGbc.weighty = 1.0;
+    wrapperGbc.anchor = GridBagConstraints.CENTER;
+    wrapper.add(card, wrapperGbc);
+    
+    rightPanel.add(wrapper, BorderLayout.CENTER);
 
         frame.add(leftPanel, BorderLayout.WEST);
         frame.add(rightPanel, BorderLayout.CENTER);
@@ -411,27 +474,63 @@ public class CollegeGPATracker { // main application class
         // GOOGLE SIGN-IN (OAuth; requires GoogleSignIn.java and client_secret.json)
         googleBtn.addActionListener(_ -> {
            try {
-               String[] result = GoogleSignIn.authenticate(); // [email, suggestedUsername]
-               String email = result[0];
-             String suggested = result[1];
+               System.out.println("DEBUG: Starting Google Sign-In process...");
+               
+               // Show progress dialog
+               JDialog progressDialog = new JDialog(frame, "Google Sign-In", true);
+               progressDialog.setSize(300, 150);
+               progressDialog.setLocationRelativeTo(frame);
+               JLabel progressLabel = new JLabel("Connecting to Google...", SwingConstants.CENTER);
+               progressDialog.add(progressLabel);
+               
+               // Start authentication in background thread
+               SwingWorker<String[], Exception> worker = new SwingWorker<String[], Exception>() {
+                   @Override
+                   protected String[] doInBackground() throws Exception {
+                       return GoogleSignIn.authenticate();
+                   }
+                   
+                   @Override
+                   protected void done() {
+                       progressDialog.dispose();
+                       try {
+                           String[] result = get();
+                           System.out.println("DEBUG: Google auth successful, email: " + result[0]);
+                           String email = result[0];
+                           String suggested = result[1];
 
-               String existing = findUserByEmail(email);
-                boolean isNew = (existing == null);
-             String useUsername = isNew ? suggested : existing;
+                           String existing = findUserByEmail(email);
+                           boolean isNew = (existing == null);
+                           String useUsername = isNew ? suggested : existing;
 
-            users.putIfAbsent(useUsername, new String[]{"", email}); // empty pass = Google login
-               if (isNew) lastUsernameChange.put(useUsername, System.currentTimeMillis());
-               currentUser = useUsername;
+                           users.putIfAbsent(useUsername, new String[]{"", email}); // empty pass = Google login
+                           if (isNew) lastUsernameChange.put(useUsername, System.currentTimeMillis());
+                           currentUser = useUsername;
 
-               ensureUserStructures(currentUser);
-               saveUsers();
-               saveAllUserData();
+                           ensureUserStructures(currentUser);
+                           saveUsers();
+                           saveAllUserData();
 
-                frame.dispose();
-                showDashboard();
+                           frame.dispose();
+                           showDashboard();
+                       } catch (Exception e) {
+                           System.err.println("DEBUG: Google Sign-In error details:");
+                           e.printStackTrace();
+                           JOptionPane.showMessageDialog(frame, 
+                               "Google Sign-In failed: " + e.getMessage() + 
+                               "\n\nPlease check:\n1. Internet connection\n2. Browser opens for authorization\n3. Console output for detailed error", 
+                               "Sign-In Failed", JOptionPane.ERROR_MESSAGE);
+                       }
+                   }
+               };
+               
+               worker.execute();
+               progressDialog.setVisible(true);
+               
            } catch (Exception e) {
-                JOptionPane.showMessageDialog(frame, "Google Sign-In failed: " + e.getMessage());
-                 e.printStackTrace();
+                System.err.println("DEBUG: Google Sign-In error details:");
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(frame, "Google Sign-In failed: " + e.getMessage() + "\n\nPlease check:\n1. Internet connection\n2. client_secret.json file is present\n3. Console output for detailed error");
              }
         });
 
@@ -488,7 +587,13 @@ public class CollegeGPATracker { // main application class
         signOutGoogle.addActionListener(_ -> {
             try {
                 GoogleSignIn.clearStoredCredentials();
-            } catch (Exception ignored) {}
+                JOptionPane.showMessageDialog(frame, 
+                    "Google account signed out successfully.\n\n" +
+                    "Next time you sign in with Google, you'll be prompted to choose an account.", 
+                    "Google Sign-Out", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception e) {
+                System.err.println("Error clearing Google credentials: " + e.getMessage());
+            }
             currentUser = null;
             frame.dispose();
             showLoginUI();
@@ -1472,7 +1577,7 @@ public class CollegeGPATracker { // main application class
             int n = 100000 + new java.util.Random().nextInt(900000);
             return String.valueOf(n);
         }
-// 
+
         private static void persist() {
             try (FileWriter fw = new FileWriter(file)) {
                 gson.toJson(tokenToUser, fw);
