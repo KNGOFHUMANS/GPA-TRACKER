@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Launch CollegeGPATracker",
+            "request": "launch",
+            "mainClass": "CollegeGPATracker",
+            "projectName": "GPAManagerApp",
+            "classPaths": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/libs/*"
+            ]
+        }
+    ]
+}
