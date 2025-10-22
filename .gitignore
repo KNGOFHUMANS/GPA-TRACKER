@@ -1,5 +1,6 @@
-# OAuth credentials - never commit these!
-client_secret.json
+# OAuth credentials - never commit actual credentials!
+# client_secret.json should contain template values only
+# Users must replace with their own credentials locally
 
 # Compiled Java classes
 *.class
