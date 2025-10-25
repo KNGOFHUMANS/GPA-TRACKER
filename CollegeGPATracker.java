@@ -47,9 +47,13 @@ public class CollegeGPATracker {
     private static String currentUser;
 
     // Complex nested data structure for storing all user academic data:
-    // user -> semester(1-4) -> className -> ClassData object
-    // This allows each user to have 4 semesters, each with multiple classes
-    private static Map<String, Map<Integer, Map<String, ClassData>>> userData = new HashMap<>();
+    // user -> semesterName -> className -> ClassData object
+    // This allows each user to have multiple named semesters (e.g., "Fall 2023", "Spring 2024")
+    private static Map<String, Map<String, Map<String, ClassData>>> userData = new HashMap<>();
+    
+    // Maps semester names to display order for consistent tab ordering
+    // Maps username -> semesterName -> order number
+    private static Map<String, Map<String, Integer>> semesterOrder = new HashMap<>();
     
     // Boolean flag to track if dark mode is enabled for the UI
     private static boolean darkMode = false;
@@ -70,25 +74,50 @@ public class CollegeGPATracker {
     // Full path to file storing password reset tokens
     private static final String RESET_CODES_FILE = DATA_DIR + File.separator + "reset_tokens.json";
     
+    // Full path to file storing login session information
+    private static final String SESSION_FILE = DATA_DIR + File.separator + "session.json";
+    
     // Gson instance for converting Java objects to/from JSON format
     private static final Gson gson = new Gson();
 
-    // ===== UI COLOR SCHEME =====
-    // Left gradient panel colors (teal to purple gradient)
-    private static final Color LEFT_TOP = new Color(0x14B8A6);      // Teal color for top of gradient
-    private static final Color LEFT_BOTTOM = new Color(0x6440FF);   // Purple color for bottom of gradient
+    // ===== GRADERISE BRANDING COLOR SCHEME =====
+    // Primary GradeRise brand colors (matching logo)
+    private static final Color BRAND_PRIMARY = new Color(0x8B1538);   // Dark red from logo
+    private static final Color GRADIENT_START = new Color(0x6D1028);  // Darker red start
+    private static final Color GRADIENT_END = BRAND_PRIMARY;          // Main red end
     
-    // Light theme colors
-    private static final Color RIGHT_BG = new Color(0xF6F7F9);      // Soft off-white background
-    @SuppressWarnings("unused")
-    private static final Color CARD_BG = new Color(0xFAFAFC);       // Card background color
+    // Grey theme background with dark red accents
+    private static final Color BG_LIGHT = new Color(0xE5E7EB);       // Light grey background
+    private static final Color CARD_LIGHT = new Color(0xF9FAFB);     // Light grey cards
+    
+    // Text colors
+    private static final Color TEXT_DARK = new Color(0x1F2937);      // Dark text on light
+    private static final Color TEXT_MUTED = new Color(0x6B7280);     // Muted grey text
+    
+    // Status colors with brand harmony
+    private static final Color SUCCESS_EMERALD = new Color(0x10B981); // Success green
+    private static final Color WARNING_AMBER = new Color(0xF59E0B);   // Warning amber
+    private static final Color DANGER_ROSE = BRAND_PRIMARY;           // Use brand red for danger
+    private static final Color INFO_BRAND = new Color(0x3B82F6);      // Blue for info
+    
+    // Enhanced accent colors
+    private static final Color BORDER_SUBTLE = new Color(0xD1D5DB);    // Subtle grey borders
+
+    // Legacy compatibility colors
+    private static final Color RIGHT_BG = BG_LIGHT;
+    private static final Color CARD_BG = CARD_LIGHT;
+    private static final Color BORDER_LIGHT = BORDER_SUBTLE;
+    private static final Color TEXT_PRIMARY = TEXT_DARK;
+    private static final Color TEXT_SECONDARY = TEXT_MUTED;
+    private static final Color SUCCESS_GREEN = SUCCESS_EMERALD;
+    private static final Color WARNING_ORANGE = WARNING_AMBER;
 
     // Dark theme colors for login screen
-    private static final Color RIGHT_BG_DARK = new Color(0x121418); // Deep charcoal background
-    private static final Color CARD_BG_DARK = new Color(0x23272B);  // Dark card surface color
-    private static final Color INPUT_BG_DARK = new Color(0x1E2225); // Dark input field background
-    private static final Color INPUT_BORDER_DARK = new Color(0x2E3438); // Dark input field border
-    private static final Color PRIMARY_DARK = new Color(0x2F80ED);  // Primary blue color for buttons
+    private static final Color RIGHT_BG_DARK = new Color(0x4B5563);
+    private static final Color CARD_BG_DARK = new Color(0x6B7280);
+    private static final Color INPUT_BG_DARK = new Color(0x9CA3AF);
+    private static final Color INPUT_BORDER_DARK = new Color(0xD1D5DB);
+    private static final Color PRIMARY_DARK = BRAND_PRIMARY;
 
     // Label that displays the overall GPA on the dashboard
     private static JLabel overallGpaLabel;
@@ -112,6 +141,9 @@ public class CollegeGPATracker {
         
         // Number of credit hours this class is worth (affects overall GPA calculation)
         int credits = 3; // Default to 3 credit hours per class
+        
+        // Class status: true = active (affects current GPA), false = past (archived)
+        boolean isActive = true; // Default to active for new classes
 
         /**
          * Constructor - Sets up default categories and weights for a new class
@@ -160,8 +192,17 @@ public class CollegeGPATracker {
         loadAllUserData();                           // Load all academic data from JSON file
         PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
         
-        // Launch the GUI on the Event Dispatch Thread (required for Swing)
-        SwingUtilities.invokeLater(CollegeGPATracker::showLoginUI);
+        // Check for existing login session
+        String savedUser = loadSession();
+        if (savedUser != null && users.containsKey(savedUser)) {
+            currentUser = savedUser;
+            ensureUserStructures(currentUser);
+            // Launch directly to dashboard
+            SwingUtilities.invokeLater(CollegeGPATracker::showDashboard);
+        } else {
+            // Launch the login UI
+            SwingUtilities.invokeLater(CollegeGPATracker::showLoginUI);
+        }
     }
 
     // ===== LOGIN PAGE =====
@@ -173,7 +214,7 @@ public class CollegeGPATracker {
         frame.setLayout(new BorderLayout());
 
         // Left panel with gradient background and title
-        JPanel leftPanel = new GradientPanel(LEFT_TOP, LEFT_BOTTOM);
+        JPanel leftPanel = new GradientPanel(GRADIENT_START, GRADIENT_END);
         leftPanel.setPreferredSize(new Dimension(420, 0));
         JLabel msg = new JLabel("<html><center>🎓<br><span style='font-size:20pt'>Your College<br>GPA Tracker</span></center></html>", SwingConstants.CENTER);
         msg.setFont(new Font("SansSerif", Font.BOLD, 28));
@@ -361,6 +402,7 @@ public class CollegeGPATracker {
             if (user != null && users.containsKey(user) && Objects.equals(users.get(user)[0], pass)) {
                 currentUser = user;
                 ensureUserStructures(currentUser);
+                saveSession(currentUser);  // Save login session
                 frame.dispose();
                 showDashboard();
             } else {
@@ -511,6 +553,7 @@ public class CollegeGPATracker {
                            ensureUserStructures(currentUser);
                            saveUsers();
                            saveAllUserData();
+                           saveSession(currentUser);  // Save login session
 
                            frame.dispose();
                            showDashboard();
@@ -596,22 +639,57 @@ public class CollegeGPATracker {
         menuBar.add(viewMenu);
         frame.setJMenuBar(menuBar);
 
-        // Top title
-        overallGpaLabel = new JLabel("Overall GPA: " + String.format("%.2f", calculateOverallGPA(currentUser)), SwingConstants.CENTER);
-        overallGpaLabel.setFont(new Font("SansSerif", Font.BOLD, 32));
-        overallGpaLabel.setBorder(new EmptyBorder(10, 0, 10, 0));
-        frame.add(overallGpaLabel, BorderLayout.NORTH);
+        // GradeRise Branded Header with Gradient
+        JPanel headerPanel = createGradeRiseHeader(currentUser);
+        frame.add(headerPanel, BorderLayout.NORTH);
 
-        // Center: semesters
-        JTabbedPane semesters = new JTabbedPane();
-        for (int i = 1; i <= 4; i++) {
-            semesters.add("Semester " + i, createSemesterPanel(i));
+        // GradeRise Modern Pill Tabs
+        JTabbedPane semesters = createModernTabbedPane();
+        
+        // Load existing semesters for current user
+        Map<String, Map<String, ClassData>> userSemesters = userData.get(currentUser);
+        if (userSemesters.isEmpty()) {
+            // Default: add first semester for new users
+            String defaultSemester = "Semester 1";
+            userSemesters.put(defaultSemester, new HashMap<>());
+            // Initialize semester ordering without using a lambda parameter to avoid unused-parameter warnings/errors
+            semesterOrder.putIfAbsent(currentUser, new HashMap<>());
+            semesterOrder.get(currentUser).put(defaultSemester, 1);
         }
-        frame.add(semesters, BorderLayout.CENTER);
+        
+        // Add tabs with modern pill design and icons (sorted by order)
+        List<String> sortedSemesters = new ArrayList<>(userSemesters.keySet());
+        Map<String, Integer> userOrder = semesterOrder.get(currentUser);
+        if (userOrder != null) {
+            sortedSemesters.sort((a, b) -> {
+                Integer orderA = userOrder.getOrDefault(a, 999);
+                Integer orderB = userOrder.getOrDefault(b, 999);
+                return orderA.compareTo(orderB);
+            });
+        }
+        
+        for (String semesterName : sortedSemesters) {
+            JPanel semesterPanel = createSemesterPanel(semesterName);
+            semesterPanel.setBackground(RIGHT_BG);
+            String tabIcon = semesterName.equals(getCurrentSemester(userSemesters)) ? "📘" : "📗";
+            semesters.add(tabIcon + " " + semesterName, semesterPanel);
+        }
+        
+        // Add "+" tab with enhanced styling
+        JPanel addSemesterPanel = createAddSemesterPanel(semesters, frame);
+        semesters.add("➕ New", addSemesterPanel);
+        semesters.setToolTipTextAt(semesters.getTabCount() - 1, "Add New Semester");
+        
+        // Style the main container
+        JPanel mainContainer = new JPanel(new BorderLayout());
+        mainContainer.setBackground(RIGHT_BG);
+        mainContainer.add(semesters, BorderLayout.CENTER);
+        frame.add(mainContainer, BorderLayout.CENTER);
 
         // handlers
         signOut.addActionListener(_ -> {
             currentUser = null;
+            clearSession();  // Clear saved session
             frame.dispose();
             showLoginUI();
         });
@@ -627,6 +705,7 @@ public class CollegeGPATracker {
                 System.err.println("Error clearing Google credentials: " + e.getMessage());
             }
             currentUser = null;
+            clearSession();  // Clear saved session
             frame.dispose();
             showLoginUI();
         });
@@ -644,54 +723,365 @@ public class CollegeGPATracker {
         frame.setVisible(true);
     }
 
+    // ===== GRADERISE HEADER =====
+    private static JPanel createGradeRiseHeader(String username) {
+        JPanel headerPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Create gradient background
+                GradientPaint gradient = new GradientPaint(
+                    0, 0, GRADIENT_START,
+                    getWidth(), 0, GRADIENT_END
+                );
+                g2d.setPaint(gradient);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                
+                // Add subtle glow effect
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+                g2d.setColor(Color.WHITE);
+                g2d.fillRect(0, 0, getWidth(), getHeight() / 3);
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+            }
+        };
+        headerPanel.setPreferredSize(new Dimension(0, 80));
+        headerPanel.setBorder(new EmptyBorder(15, 25, 15, 25));
+        
+        // Left side - Logo and Title
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 5));
+        leftPanel.setOpaque(false);
+        
+        JLabel logoLabel = new JLabel("🎓");
+        logoLabel.setFont(new Font("SansSerif", Font.PLAIN, 32));
+        
+        JLabel titleLabel = new JLabel("GradeRise Dashboard");
+        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
+        titleLabel.setForeground(Color.WHITE);
+        
+        leftPanel.add(logoLabel);
+        leftPanel.add(titleLabel);
+        
+        // Center - GPA Display with Achievement Badge
+        double gpa = calculateOverallGPA(username);
+        String achievementText = gpa >= 3.7 ? "⭐ High Achiever" : 
+                                gpa >= 3.0 ? "📈 On Track" : 
+                                "💪 Keep Going";
+        
+        overallGpaLabel = new JLabel("Overall GPA: " + String.format("%.2f", gpa) + " " + achievementText);
+        overallGpaLabel.setFont(new Font("SansSerif", Font.BOLD, 24));
+        overallGpaLabel.setForeground(Color.WHITE);
+        overallGpaLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        // Add text shadow effect
+        overallGpaLabel.setBorder(new EmptyBorder(5, 5, 5, 5));
+        
+        headerPanel.add(leftPanel, BorderLayout.WEST);
+        headerPanel.add(overallGpaLabel, BorderLayout.CENTER);
+        
+        return headerPanel;
+    }
+
+    // ===== MODERN TABBED PANE =====
+    private static JTabbedPane createModernTabbedPane() {
+        JTabbedPane tabbedPane = new JTabbedPane() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Custom tab rendering with rounded corners and gradient underline
+                int selectedIndex = getSelectedIndex();
+                if (selectedIndex >= 0) {
+                    Rectangle tabBounds = getBoundsAt(selectedIndex);
+                    if (tabBounds != null) {
+                        // Gradient underline for active tab
+                        GradientPaint gradient = new GradientPaint(
+                            tabBounds.x, tabBounds.y + tabBounds.height - 3,
+                            GRADIENT_START,
+                            tabBounds.x + tabBounds.width, tabBounds.y + tabBounds.height - 3,
+                            GRADIENT_END
+                        );
+                        g2d.setPaint(gradient);
+                        g2d.fillRoundRect(tabBounds.x + 10, tabBounds.y + tabBounds.height - 3, 
+                                        tabBounds.width - 20, 3, 3, 3);
+                    }
+                }
+            }
+        };
+        
+        tabbedPane.setFont(new Font("SansSerif", Font.BOLD, 14));
+        tabbedPane.setBackground(RIGHT_BG);
+        tabbedPane.setBorder(new EmptyBorder(10, 25, 15, 25));
+        tabbedPane.setTabPlacement(JTabbedPane.TOP);
+        
+        return tabbedPane;
+    }
+    
+    private static String getCurrentSemester(Map<String, Map<String, ClassData>> userSemesters) {
+        // Return the most recently added semester (highest order number)
+        Map<String, Integer> userOrder = semesterOrder.get(currentUser);
+        if (userOrder == null || userOrder.isEmpty()) {
+            return userSemesters.keySet().stream().findFirst().orElse("Semester 1");
+        }
+        
+        return userOrder.entrySet().stream()
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .orElse("Semester 1");
+    }
+    
+    // ===== ANALYTICS PANEL =====
+    private static JPanel createAnalyticsPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(RIGHT_BG);
+        return panel;
+    }
+    
+    private static JPanel createAnalyticsCard(String title, JComponent content) {
+        JPanel card = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Card shadow
+                g2d.setColor(new Color(0, 0, 0, 20));
+                g2d.fillRoundRect(2, 4, getWidth() - 4, getHeight() - 6, 12, 12);
+                
+                // Card background
+                g2d.setColor(CARD_LIGHT);
+                g2d.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 4, 12, 12);
+                
+                g2d.dispose();
+            }
+        };
+        
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(15, 15, 15, 15));
+        
+        // Title with gradient accent
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+        titleLabel.setForeground(TEXT_DARK);
+        
+        card.add(titleLabel, BorderLayout.NORTH);
+        card.add(content, BorderLayout.CENTER);
+        
+        return card;
+    }
+
+    // ===== ADD SEMESTER PANEL =====
+    private static JPanel createAddSemesterPanel(JTabbedPane semesters, JFrame parentFrame) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(new Color(0xF8F9FA));
+        
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(Color.WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(0xE0E0E0), 1),
+            new EmptyBorder(40, 40, 40, 40)
+        ));
+        card.setMaximumSize(new Dimension(400, 300));
+        
+        JLabel icon = new JLabel("📚", SwingConstants.CENTER);
+        icon.setFont(new Font("SansSerif", Font.PLAIN, 48));
+        icon.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel title = new JLabel("Add New Semester", SwingConstants.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 18));
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel subtitle = new JLabel("Track classes for a new semester", SwingConstants.CENTER);
+        subtitle.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        subtitle.setForeground(new Color(0x666666));
+        subtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JButton addBtn = pillButton("+ Add Semester");
+        addBtn.setBackground(new Color(0x2F80ED));
+        addBtn.setForeground(Color.WHITE);
+        addBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
+        addBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        // Add semester button logic
+        addBtn.addActionListener(_ -> {
+            // Get semester details with suggestions
+            JPanel inputPanel = new JPanel(new GridLayout(3, 1, 5, 5));
+            JTextField nameField = new JTextField();
+            JComboBox<String> suggestionBox = new JComboBox<>(new String[]{
+                "Fall 2024", "Spring 2025", "Summer 2025", "Fall 2025",
+                "Winter 2024", "Spring 2024", "Summer 2024"
+            });
+            suggestionBox.setEditable(true);
+            
+            inputPanel.add(new JLabel("Semester Name:"));
+            inputPanel.add(nameField);
+            inputPanel.add(new JLabel("Or choose from suggestions:"));
+            inputPanel.add(suggestionBox);
+            
+            int result = JOptionPane.showConfirmDialog(parentFrame, inputPanel, 
+                "Add New Semester", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            
+            if (result != JOptionPane.OK_OPTION) return;
+            
+            String semesterName = nameField.getText().trim();
+            if (semesterName.isEmpty()) {
+                Object selected = suggestionBox.getSelectedItem();
+                semesterName = selected != null ? selected.toString().trim() : "";
+            }
+            
+            if (semesterName.isEmpty()) {
+                // Generate default name
+                Map<String, Integer> userOrder = semesterOrder.get(currentUser);
+                int nextNum = userOrder != null ? userOrder.size() + 1 : 1;
+                semesterName = "Semester " + nextNum;
+            }
+            
+            // Check if semester already exists
+            if (userData.get(currentUser).containsKey(semesterName)) {
+                JOptionPane.showMessageDialog(parentFrame, 
+                    "A semester with that name already exists!", "Duplicate Name", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            
+            // Add new semester
+            userData.get(currentUser).put(semesterName, new HashMap<>());
+            
+            // Set semester order (avoid unused lambda parameter by using get/put)
+            Map<String, Integer> userOrderMap = semesterOrder.get(currentUser);
+            if (userOrderMap == null) {
+                userOrderMap = new HashMap<>();
+                semesterOrder.put(currentUser, userOrderMap);
+            }
+            int maxOrder = userOrderMap.values().stream().max(Integer::compareTo).orElse(0);
+            userOrderMap.put(semesterName, maxOrder + 1);
+            
+            saveAllUserData();
+            
+            // Add tab before the "+" tab
+            int insertIndex = semesters.getTabCount() - 1;
+            semesters.insertTab("📗 " + semesterName, null, createSemesterPanel(semesterName), 
+                semesterName, insertIndex);
+            
+            // Switch to new semester
+            semesters.setSelectedIndex(insertIndex);
+            
+            // Update overall GPA
+            updateOverallGpaLabel();
+        });
+        
+        card.add(icon);
+        card.add(Box.createVerticalStrut(16));
+        card.add(title);
+        card.add(Box.createVerticalStrut(8));
+        card.add(subtitle);
+        card.add(Box.createVerticalStrut(24));
+        card.add(addBtn);
+        
+        panel.add(card);
+        return panel;
+    }
+
     // ===== SEMESTER PANEL =====
-    private static JPanel createSemesterPanel(int semesterNum) {
+    private static JPanel createSemesterPanel(String semesterName) {
         JPanel root = new JPanel(new BorderLayout());
-        root.setBorder(new EmptyBorder(8,8,8,8));
+        root.setBackground(RIGHT_BG);
+        root.setBorder(new EmptyBorder(20, 20, 20, 20));
 
         // Left: class list with progress bars
         DefaultListModel<String> classListModel = new DefaultListModel<>();
         JList<String> classList = new JList<>(classListModel);
-        classList.setCellRenderer(new ClassRenderer(semesterNum));
+        classList.setCellRenderer(new ClassRenderer(semesterName));
         classList.setFixedCellHeight(64);
 
         JScrollPane classScroll = new JScrollPane(classList);
         classScroll.setPreferredSize(new Dimension(260, 0));
 
-        JButton addClassBtn = pillButton("+ Add Class");
-        JButton deleteClassBtn = pillButton("Delete Class");
-        JPanel leftTop = new JPanel(new GridLayout(1, 2, 10, 10));
+        JButton addClassBtn = createGradeRiseButton("➕ Add Class", SUCCESS_EMERALD, true);
+        JButton deleteClassBtn = createGradeRiseButton("🗑️ Delete Class", DANGER_ROSE, false);
+        JButton toggleStatusBtn = createGradeRiseButton("📚 Toggle Status", INFO_BRAND, true);
+        JButton removeSemesterBtn = createGradeRiseButton("⚠️ Remove Semester", DANGER_ROSE, false);
+        removeSemesterBtn.setToolTipText("Delete this entire semester");
+        
+        JPanel leftTop = new JPanel(new GridLayout(2, 2, 5, 5));
         leftTop.add(addClassBtn);
         leftTop.add(deleteClassBtn);
+        leftTop.add(toggleStatusBtn);
+        leftTop.add(removeSemesterBtn);
+        leftTop.add(new JLabel()); // Empty space
 
-        JPanel left = new JPanel(new BorderLayout(8,8));
+        JPanel left = new JPanel(new BorderLayout(12, 12));
+        left.setBackground(CARD_BG);
+        left.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_LIGHT, 1),
+            new EmptyBorder(16, 16, 16, 16)
+        ));
         left.add(leftTop, BorderLayout.NORTH);
         left.add(classScroll, BorderLayout.CENTER);
 
-        // Center: table + pie + trend + badges
-        String[] cols = {"Assignment", "Category", "Score (%)"};
+        // Enhanced table with modern styling
+        String[] cols = {"📝 Assignment", "📁 Category", "📊 Score (%)"};
         DefaultTableModel model = new DefaultTableModel(cols, 0){
             @Override public boolean isCellEditable(int r, int c){ return false; }
         };
         JTable table = new JTable(model);
-        table.setRowHeight(26);
+        table.setRowHeight(32);
         table.setFont(new Font("SansSerif", Font.PLAIN, 14));
         table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 14));
+        table.setBackground(CARD_BG);
+        table.setGridColor(BORDER_LIGHT);
+        table.getTableHeader().setBackground(new Color(0xF7FAFC));
+        table.getTableHeader().setForeground(TEXT_PRIMARY);
+        table.getTableHeader().setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_LIGHT));
+        table.setSelectionBackground(new Color(0xEDF2F7));
+        table.setSelectionForeground(TEXT_PRIMARY);
 
         JLabel classTitle = new JLabel("Select a class", SwingConstants.CENTER);
         classTitle.setFont(new Font("SansSerif", Font.BOLD, 18));
         classTitle.setBorder(BorderFactory.createTitledBorder(""));
 
-        JButton addAssignmentBtn = pillButton("+ Add Assignment");
-        JButton deleteAssignmentBtn = pillButton("Delete Assignment");
-        JButton weightsBtn = pillButton("\uD83D\uDD11 Weights");
-        JButton creditsBtn = pillButton("\uD83D\uDCB0 Credits");
+        JButton addAssignmentBtn = createGradeRiseButton("➕ Add Assignment", SUCCESS_EMERALD, true);
+        JButton deleteAssignmentBtn = createGradeRiseButton("🗑️ Delete Assignment", DANGER_ROSE, false);
+        JButton weightsBtn = createGradeRiseButton("⚖️ Weights", INFO_BRAND, true);
+        JButton creditsBtn = createGradeRiseButton("💎 Credits", WARNING_AMBER, false);
+        
+        // Modern class status controls
+        JToggleButton showActiveBtn = new JToggleButton("✅ Active", true);
+        JToggleButton showPastBtn = new JToggleButton("📚 Archived", false);
+        ButtonGroup viewGroup = new ButtonGroup();
+        viewGroup.add(showActiveBtn);
+        viewGroup.add(showPastBtn);
+        
+        // Enhanced toggle button styling
+        styleToggleButton(showActiveBtn, SUCCESS_GREEN, true);
+        styleToggleButton(showPastBtn, TEXT_SECONDARY, false);
+        
+        // Enhanced action listeners for class status toggle
+        showActiveBtn.addActionListener(_ -> {
+            styleToggleButton(showActiveBtn, SUCCESS_GREEN, true);
+            styleToggleButton(showPastBtn, TEXT_SECONDARY, false);
+            refreshClassTable(model, semesterName, true); // Show only active classes
+        });
+        
+        showPastBtn.addActionListener(_ -> {
+            styleToggleButton(showActiveBtn, TEXT_SECONDARY, false);
+            styleToggleButton(showPastBtn, WARNING_ORANGE, true);
+            refreshClassTable(model, semesterName, false); // Show only past classes
+        });
 
         JLabel classGpaLabel = new JLabel("Class GPA: —", SwingConstants.LEFT);
         classGpaLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
 
         JPanel centerTop = new JPanel(new BorderLayout());
         JPanel rightControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+        rightControls.add(showActiveBtn);
+        rightControls.add(showPastBtn);
         rightControls.add(creditsBtn);
         rightControls.add(weightsBtn);
         centerTop.add(classTitle, BorderLayout.CENTER);
@@ -708,34 +1098,26 @@ public class CollegeGPATracker {
 
         JScrollPane tableScroll = new JScrollPane(table);
 
-        // Right dashboard column
+        // Enhanced GradeRise Analytics Panel
+        JPanel rightDash = createAnalyticsPanel();
         PiePanel piePanel = new PiePanel();
         TrendPanel trendPanel = new TrendPanel();
         BadgePanel badgePanel = new BadgePanel();
 
-        JPanel rightDash = new JPanel();
-        rightDash.setLayout(new BoxLayout(rightDash, BoxLayout.Y_AXIS));
-        JPanel weightsBox = new JPanel(new BorderLayout());
-        weightsBox.setBorder(BorderFactory.createTitledBorder("Breakdown"));
-        weightsBox.add(piePanel, BorderLayout.CENTER);
+        // Modern card containers with rounded corners and shadows
+        JPanel weightsCard = createAnalyticsCard("📊 Grade Breakdown", piePanel);
+        JPanel trendCard = createAnalyticsCard("📈 Performance Trend", trendPanel);
+        JPanel badgesCard = createAnalyticsCard("🏆 Achievements", badgePanel);
 
-        JPanel trendBox = new JPanel(new BorderLayout());
-        trendBox.setBorder(BorderFactory.createTitledBorder("Trend"));
-        trendBox.add(trendPanel, BorderLayout.CENTER);
+        weightsCard.setMaximumSize(new Dimension(340, 260));
+        trendCard.setMaximumSize(new Dimension(340, 200));
+        badgesCard.setMaximumSize(new Dimension(340, 140));
 
-        JPanel badgesBox = new JPanel(new BorderLayout());
-        badgesBox.setBorder(BorderFactory.createTitledBorder("Badges"));
-        badgesBox.add(badgePanel, BorderLayout.CENTER);
-
-        weightsBox.setMaximumSize(new Dimension(340, 240));
-        trendBox.setMaximumSize(new Dimension(340, 180));
-        badgesBox.setMaximumSize(new Dimension(340, 120));
-
-        rightDash.add(weightsBox);
-        rightDash.add(Box.createVerticalStrut(8));
-        rightDash.add(trendBox);
-        rightDash.add(Box.createVerticalStrut(8));
-        rightDash.add(badgesBox);
+        rightDash.add(weightsCard);
+        rightDash.add(Box.createVerticalStrut(12));
+        rightDash.add(trendCard);
+        rightDash.add(Box.createVerticalStrut(12));
+        rightDash.add(badgesCard);
 
         JSplitPane centerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
                 tableScroll, rightDash);
@@ -755,9 +1137,9 @@ public class CollegeGPATracker {
 
         // ensure storage
         ensureUserStructures(currentUser);
-        userData.get(currentUser).putIfAbsent(semesterNum, new HashMap<>());
+        userData.get(currentUser).putIfAbsent(semesterName, new HashMap<>());
         // fill list
-        for (String cls : userData.get(currentUser).get(semesterNum).keySet()) {
+        for (String cls : userData.get(currentUser).get(semesterName).keySet()) {
             classListModel.addElement(cls);
         }
 
@@ -765,7 +1147,7 @@ public class CollegeGPATracker {
         addClassBtn.addActionListener(_ -> {
             String className = JOptionPane.showInputDialog(root, "Enter class name:");
             if (className == null || className.trim().isEmpty()) return;
-            if (userData.get(currentUser).get(semesterNum).containsKey(className)) {
+            if (userData.get(currentUser).get(semesterName).containsKey(className)) {
                 JOptionPane.showMessageDialog(root, "Class already exists.");
                 return;
             }
@@ -778,7 +1160,7 @@ public class CollegeGPATracker {
             } catch (Exception ignored) {}
             ClassData cd = new ClassData();
             cd.credits = credits;
-            userData.get(currentUser).get(semesterNum).put(className, cd);
+            userData.get(currentUser).get(semesterName).put(className, cd);
             classListModel.addElement(className);
             saveAllUserData();
             updateOverallGpaLabel();
@@ -788,7 +1170,7 @@ public class CollegeGPATracker {
         deleteClassBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) return;
-            userData.get(currentUser).get(semesterNum).remove(selectedClass);
+            userData.get(currentUser).get(semesterName).remove(selectedClass);
             classListModel.removeElement(selectedClass);
             model.setRowCount(0);
             classTitle.setText("Select a class");
@@ -800,6 +1182,62 @@ public class CollegeGPATracker {
             updateOverallGpaLabel();
             classList.repaint();
         });
+        
+        toggleStatusBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null) {
+                JOptionPane.showMessageDialog(root, "Please select a class to toggle its status.");
+                return;
+            }
+            
+            ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
+            cd.isActive = !cd.isActive; // Toggle between active and past
+            
+            String status = cd.isActive ? "Active" : "Past";
+            JOptionPane.showMessageDialog(root, 
+                selectedClass + " is now marked as " + status + ".\n" +
+                (cd.isActive ? "This class will affect your current GPA." : "This class is archived and won't affect your current GPA."));
+            
+            saveAllUserData();
+            updateOverallGpaLabel();
+            
+            // Refresh the current view
+            if (showActiveBtn.isSelected()) {
+                refreshClassTable(model, semesterName, true);
+            } else {
+                refreshClassTable(model, semesterName, false);
+            }
+        });
+
+        // Remove entire semester
+        removeSemesterBtn.addActionListener(_ -> {
+            // Prevent removing the last semester
+            if (userData.get(currentUser).size() <= 1) {
+                JOptionPane.showMessageDialog(root, "Cannot remove the last semester.\nYou must have at least one semester.");
+                return;
+            }
+            
+            int confirm = JOptionPane.showConfirmDialog(root, 
+                "Are you sure you want to delete " + semesterName + "?\n" +
+                "This will permanently remove all classes and assignments in this semester.", 
+                "Delete Semester", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                // Remove semester data
+                userData.get(currentUser).remove(semesterName);
+                // Also remove from semester order tracking
+                Map<String, Integer> userOrder = semesterOrder.get(currentUser);
+                if (userOrder != null) {
+                    userOrder.remove(semesterName);
+                }
+                saveAllUserData();
+                updateOverallGpaLabel();
+                
+                // Refresh the entire dashboard to update tabs
+                SwingUtilities.getWindowAncestor(root).dispose();
+                showDashboard();
+            }
+        });
 
         classList.addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) return;
@@ -808,7 +1246,7 @@ public class CollegeGPATracker {
             classTitle.setText(selectedClass + " — Assignments");
 
             model.setRowCount(0);
-            ClassData cd = userData.get(currentUser).get(semesterNum).get(selectedClass);
+            ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
             for (String cat : cd.assignments.keySet()) {
                 for (Assignment a : cd.assignments.get(cat)) {
                     model.addRow(new Object[]{a.name, a.category, a.score});
@@ -830,7 +1268,7 @@ public class CollegeGPATracker {
         addAssignmentBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) return;
-            ClassData cd = userData.get(currentUser).get(semesterNum).get(selectedClass);
+            ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
 
             String aName = JOptionPane.showInputDialog(root, "Assignment name:");
             if (aName == null || aName.trim().isEmpty()) return;
@@ -870,7 +1308,7 @@ public class CollegeGPATracker {
             int row = table.getSelectedRow();
             if (row < 0) return;
 
-            ClassData cd = userData.get(currentUser).get(semesterNum).get(selectedClass);
+            ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
             String aName = (String) model.getValueAt(row, 0);
             String category = (String) model.getValueAt(row, 1);
 
@@ -894,7 +1332,7 @@ public class CollegeGPATracker {
         weightsBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) return;
-            ClassData cd = userData.get(currentUser).get(semesterNum).get(selectedClass);
+            ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
 
             try {
                 int hw = Integer.parseInt(JOptionPane.showInputDialog(root, "Homework weight %:", cd.weights.get("Homework")));
@@ -925,7 +1363,7 @@ public class CollegeGPATracker {
         creditsBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) return;
-            ClassData cd = userData.get(currentUser).get(semesterNum).get(selectedClass);
+            ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
             String newC = JOptionPane.showInputDialog(root, "Credit hours:", cd.credits);
             try {
                 if (newC != null && !newC.trim().isEmpty()) {
@@ -941,6 +1379,43 @@ public class CollegeGPATracker {
     }
 
     // ===== User Profile =====
+    private static void refreshClassTable(DefaultTableModel model, String semesterName, boolean showActive) {
+        model.setRowCount(0); // Clear existing rows
+        
+        Map<String, ClassData> semesterData = userData.get(currentUser).get(semesterName);
+        if (semesterData == null) return;
+        
+        for (String className : semesterData.keySet()) {
+            ClassData classData = semesterData.get(className);
+            
+            // Check if class matches the active filter
+            if (classData.isActive == showActive) {
+                boolean hasAssignments = false;
+                
+                // Add all assignments for this class, from all categories
+                for (String category : classData.assignments.keySet()) {
+                    List<Assignment> categoryAssignments = classData.assignments.get(category);
+                    for (Assignment assignment : categoryAssignments) {
+                        Object[] row = {
+                            className,
+                            assignment.name,
+                            assignment.score + "%",
+                            classData.weights.get(category) + "%"
+                        };
+                        model.addRow(row);
+                        hasAssignments = true;
+                    }
+                }
+                
+                // If no assignments, still show the class
+                if (!hasAssignments) {
+                    Object[] row = {className, "No assignments", "", ""};
+                    model.addRow(row);
+                }
+            }
+        }
+    }
+
     private static void showUserPanel(JFrame parent) {
         String[] data = users.get(currentUser);
         String password = data[0];
@@ -1014,6 +1489,132 @@ public class CollegeGPATracker {
     }
 
     // ===== Utilities & GPA =====
+    private static JButton createGradeRiseButton(String text, Color bgColor, boolean isGradient) {
+        JButton button = new JButton(text) {
+            private boolean isHovered = false;
+            
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Create gradient or solid background
+                if (isGradient || bgColor == INFO_BRAND) {
+                    GradientPaint gradient = new GradientPaint(
+                        0, 0, GRADIENT_START,
+                        getWidth(), getHeight(), GRADIENT_END
+                    );
+                    g2d.setPaint(gradient);
+                } else {
+                    g2d.setColor(isHovered ? bgColor.brighter() : bgColor);
+                }
+                
+                // Draw rounded rectangle
+                g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                
+                // Add glow effect on hover
+                if (isHovered) {
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
+                    g2d.setColor(Color.WHITE);
+                    g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 8, 8);
+                }
+                
+                g2d.dispose();
+                super.paintComponent(g);
+            }
+            
+            @Override
+            protected void paintBorder(Graphics g) {
+                // No border painting - custom shape
+            }
+        };
+        
+        button.setFont(new Font("SansSerif", Font.BOLD, 13));
+        button.setForeground(Color.WHITE);
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(new EmptyBorder(10, 18, 10, 18));
+        
+        // Enhanced hover effects with animation
+        button.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                ((JButton) e.getSource()).putClientProperty("isHovered", true);
+                e.getComponent().repaint();
+                
+                // Add glow shadow effect
+                button.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createEmptyBorder(2, 2, 4, 2),
+                    new EmptyBorder(8, 16, 8, 16)
+                ));
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                ((JButton) e.getSource()).putClientProperty("isHovered", false);
+                e.getComponent().repaint();
+            }
+        });
+        
+        return button;
+    }
+    
+    private static void styleToggleButton(JToggleButton button, Color bgColor, boolean isActive) {
+        button.setFont(new Font("SansSerif", Font.BOLD, 12));
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        // Create custom painted button with GradeRise styling
+        button.putClientProperty("isActive", isActive);
+        button.putClientProperty("bgColor", bgColor);
+        
+        // Override paint method for custom rendering
+        button.setUI(new javax.swing.plaf.basic.BasicToggleButtonUI() {
+            @Override
+            public void paint(Graphics g, JComponent c) {
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                boolean active = Boolean.TRUE.equals(c.getClientProperty("isActive"));
+                Color color = (Color) c.getClientProperty("bgColor");
+                
+                if (active) {
+                    // Gradient background for active state
+                    if (color == SUCCESS_EMERALD) {
+                        GradientPaint gradient = new GradientPaint(0, 0, GRADIENT_START, c.getWidth(), 0, color);
+                        g2d.setPaint(gradient);
+                    } else {
+                        g2d.setColor(color);
+                    }
+                    g2d.fillRoundRect(0, 0, c.getWidth(), c.getHeight(), 8, 8);
+                    g2d.setColor(Color.WHITE);
+                } else {
+                    // Inactive state
+                    g2d.setColor(new Color(0xF7FAFC));
+                    g2d.fillRoundRect(0, 0, c.getWidth(), c.getHeight(), 8, 8);
+                    g2d.setColor(new Color(0xE5E7EB));
+                    g2d.drawRoundRect(0, 0, c.getWidth() - 1, c.getHeight() - 1, 8, 8);
+                    g2d.setColor(TEXT_MUTED);
+                }
+                
+                // Draw text
+                FontMetrics fm = g2d.getFontMetrics(c.getFont());
+                String text = ((AbstractButton) c).getText();
+                int x = (c.getWidth() - fm.stringWidth(text)) / 2;
+                int y = (c.getHeight() - fm.getHeight()) / 2 + fm.getAscent();
+                g2d.drawString(text, x, y);
+                
+                g2d.dispose();
+            }
+        });
+        
+        button.setBorder(new EmptyBorder(8, 16, 8, 16));
+    }
+    
     private static JButton pillButton(String text) {
         return pillButton(text, null);
     }
@@ -1211,8 +1812,8 @@ public class CollegeGPATracker {
         if (!userData.containsKey(user)) return 0.0;
         double totalPoints = 0.0;
         int totalCredits = 0;
-        for (int sem : userData.get(user).keySet()) {
-            for (ClassData cd : userData.get(user).get(sem).values()) {
+        for (String semesterName : userData.get(user).keySet()) {
+            for (ClassData cd : userData.get(user).get(semesterName).values()) {
                 double gpa = calculateClassGPA(cd);
                 totalPoints += gpa * cd.credits;
                 totalCredits += cd.credits;
@@ -1237,8 +1838,13 @@ public class CollegeGPATracker {
 
     private static void ensureUserStructures(String user) {
         userData.putIfAbsent(user, new HashMap<>());
-        for (int i = 1; i <= 4; i++) {
-            userData.get(user).putIfAbsent(i, new HashMap<>());
+        semesterOrder.putIfAbsent(user, new HashMap<>());
+        
+        // If user has no semesters, add a default one
+        if (userData.get(user).isEmpty()) {
+            String defaultSemester = "Semester 1";
+            userData.get(user).put(defaultSemester, new HashMap<>());
+            semesterOrder.get(user).put(defaultSemester, 1);
         }
     }
 
@@ -1274,15 +1880,68 @@ public class CollegeGPATracker {
         try (FileWriter fw = new FileWriter(USERDATA_FILE)) {
             gson.toJson(userData, fw);
         } catch (IOException e) { e.printStackTrace(); }
+        
+        // Also save semester order
+        try (FileWriter fw = new FileWriter(DATA_DIR + File.separator + "semester_order.json")) {
+            gson.toJson(semesterOrder, fw);
+        } catch (IOException e) { e.printStackTrace(); }
     }
 
     private static void loadAllUserData() {
         File f = new File(USERDATA_FILE);
         if (!f.exists()) return;
         try (FileReader fr = new FileReader(f)) {
-            Map<String, Map<Integer, Map<String, ClassData>>> map =
-                    gson.fromJson(fr, new TypeToken<Map<String, Map<Integer, Map<String, ClassData>>>>(){}.getType());
-            if (map != null) userData = map;
+            // Try to load the new String-based format first
+            try {
+                Map<String, Map<String, Map<String, ClassData>>> map =
+                        gson.fromJson(fr, new TypeToken<Map<String, Map<String, Map<String, ClassData>>>>(){}.getType());
+                if (map != null) {
+                    userData = map;
+                    // Load semester order if available
+                    loadSemesterOrder();
+                    return;
+                }
+            } catch (Exception ignored) {}
+            
+            // If that fails, try to migrate from old Integer-based format
+            try {
+                fr.close();
+                FileReader fr2 = new FileReader(f);
+                Map<String, Map<Integer, Map<String, ClassData>>> oldMap =
+                        gson.fromJson(fr2, new TypeToken<Map<String, Map<Integer, Map<String, ClassData>>>>(){}.getType());
+                if (oldMap != null) {
+                    // Migrate old format to new format
+                    for (String user : oldMap.keySet()) {
+                        Map<String, Map<String, ClassData>> newUserData = new HashMap<>();
+                        Map<String, Integer> userOrderMap = new HashMap<>();
+                        
+                        for (Integer semNum : oldMap.get(user).keySet()) {
+                            String semesterName = "Semester " + semNum;
+                            newUserData.put(semesterName, oldMap.get(user).get(semNum));
+                            userOrderMap.put(semesterName, semNum);
+                        }
+                        
+                        userData.put(user, newUserData);
+                        semesterOrder.put(user, userOrderMap);
+                    }
+                    
+                    // Save the migrated data
+                    saveAllUserData();
+                }
+                fr2.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        } catch (IOException e) { e.printStackTrace(); }
+    }
+    
+    private static void loadSemesterOrder() {
+        File f = new File(DATA_DIR + File.separator + "semester_order.json");
+        if (!f.exists()) return;
+        try (FileReader fr = new FileReader(f)) {
+            Map<String, Map<String, Integer>> map =
+                    gson.fromJson(fr, new TypeToken<Map<String, Map<String, Integer>>>(){}.getType());
+            if (map != null) semesterOrder = map;
         } catch (IOException e) { e.printStackTrace(); }
     }
 
@@ -1290,10 +1949,10 @@ public class CollegeGPATracker {
     static class ClassRenderer extends JPanel implements ListCellRenderer<String> {
         private final JLabel name = new JLabel();
         private final JProgressBar bar = new JProgressBar(0, 100);
-        private final int semester;
-        ClassRenderer(int semester) {
+        private final String semesterName;
+        ClassRenderer(String semesterName) {
             super(new BorderLayout(6,6));
-            this.semester = semester;
+            this.semesterName = semesterName;
             setBorder(new EmptyBorder(8,8,8,8));
             name.setFont(new Font("SansSerif", Font.BOLD, 16));
             bar.setStringPainted(true);
@@ -1311,7 +1970,7 @@ public class CollegeGPATracker {
                                                       boolean isSelected, boolean cellHasFocus) {
             name.setText(value);
             try {
-                ClassData cd = userData.get(currentUser).get(semester).get(value);
+                ClassData cd = userData.get(currentUser).get(semesterName).get(value);
                 double p = calculateClassPercent(cd);
                 bar.setValue((int)Math.round(p));
                 bar.setForeground(barColorFor(p));
@@ -1614,6 +2273,67 @@ public class CollegeGPATracker {
             try (FileWriter fw = new FileWriter(file)) {
                 gson.toJson(tokenToUser, fw);
             } catch (IOException ignored) {}
+        }
+    }
+
+    // ===== SESSION MANAGEMENT =====
+    
+    /**
+     * Save current user login session to file
+     */
+    private static void saveSession(String username) {
+        if (username == null) return;
+        try (FileWriter fw = new FileWriter(SESSION_FILE)) {
+            Map<String, Object> session = new HashMap<>();
+            session.put("username", username);
+            session.put("timestamp", System.currentTimeMillis());
+            gson.toJson(session, fw);
+        } catch (IOException e) {
+            System.err.println("Failed to save session: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Load saved login session from file
+     * Returns username if valid session exists, null otherwise
+     */
+    private static String loadSession() {
+        File f = new File(SESSION_FILE);
+        if (!f.exists()) return null;
+        
+        try (FileReader fr = new FileReader(f)) {
+            Map<String, Object> session = gson.fromJson(fr, new TypeToken<Map<String, Object>>(){}.getType());
+            if (session == null) return null;
+            
+            String username = (String) session.get("username");
+            Object timestampObj = session.get("timestamp");
+            
+            if (username == null || timestampObj == null) return null;
+            
+            // Check if session is not too old (30 days)
+            long timestamp = ((Number) timestampObj).longValue();
+            long now = System.currentTimeMillis();
+            long maxAge = 30L * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+            
+            if (now - timestamp > maxAge) {
+                clearSession(); // Session expired, clear it
+                return null;
+            }
+            
+            return username;
+        } catch (Exception e) {
+            System.err.println("Failed to load session: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Clear saved login session
+     */
+    private static void clearSession() {
+        File f = new File(SESSION_FILE);
+        if (f.exists()) {
+            f.delete();
         }
     }
 }

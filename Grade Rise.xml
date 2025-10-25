@@ -3,7 +3,7 @@
   <dontWrapJar>false</dontWrapJar>
   <headerType>gui</headerType>
   <jar>C:\Users\malik\OneDrive\Desktop\GPAManagerApp\GPATracker-bundled.jar</jar>
-  <outfile>C:\Users\malik\OneDrive\Desktop\GPAManagerApp\GradeRise.exe</outfile>
+  <outfile>C:\Users\malik\Downloads\GRADE RISE.exe</outfile>
   <errTitle></errTitle>
   <cmdLine></cmdLine>
   <chdir>.</chdir>
@@ -16,7 +16,7 @@
   <icon>C:\Users\malik\Downloads\Screenshot-2025-10-24-134931.ico</icon>
   <jre>
     <path>%JAVA_HOME%;%PATH%</path>
-    <requiresJdk>false</requiresJdk>
+    <requiresJdk>true</requiresJdk>
     <requires64Bit>false</requires64Bit>
     <minVersion>25</minVersion>
     <maxVersion></maxVersion>
