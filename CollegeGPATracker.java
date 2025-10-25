@@ -144,6 +144,14 @@ public class CollegeGPATracker {
         
         // Class status: true = active (affects current GPA), false = past (archived)
         boolean isActive = true; // Default to active for new classes
+        
+        // Final grade for past classes (when assignments aren't tracked individually)
+        // -1 means no final grade set, 0-100 represents the final percentage
+        double finalGrade = -1.0;
+        
+        // Letter grade for past classes (A, B, C, D, F)
+        // Empty string means no letter grade set
+        String letterGrade = "";
 
         /**
          * Constructor - Sets up default categories and weights for a new class
@@ -1050,6 +1058,8 @@ public class CollegeGPATracker {
         JButton deleteAssignmentBtn = createGradeRiseButton("🗑️ Delete Assignment", DANGER_ROSE, false);
         JButton weightsBtn = createGradeRiseButton("⚖️ Weights", INFO_BRAND, true);
         JButton creditsBtn = createGradeRiseButton("💎 Credits", WARNING_AMBER, false);
+        JButton letterGradeBtn = createGradeRiseButton("🎓 Letter Grade", new Color(0x9333EA), false);
+        letterGradeBtn.setToolTipText("Set letter grade for past classes (A, B, C, D, F)");
         
         // Modern class status controls
         JToggleButton showActiveBtn = new JToggleButton("✅ Active", true);
@@ -1084,6 +1094,7 @@ public class CollegeGPATracker {
         rightControls.add(showPastBtn);
         rightControls.add(creditsBtn);
         rightControls.add(weightsBtn);
+        rightControls.add(letterGradeBtn);
         centerTop.add(classTitle, BorderLayout.CENTER);
         centerTop.add(rightControls, BorderLayout.EAST);
 
@@ -1373,6 +1384,75 @@ public class CollegeGPATracker {
                     updateOverallGpaLabel();
                 }
             } catch (Exception ignored) {}
+        });
+
+        // Letter Grade Button - For setting letter grades on past classes
+        letterGradeBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null) {
+                JOptionPane.showMessageDialog(root, "Please select a class first.");
+                return;
+            }
+            
+            ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
+            
+            // Letter grade options
+            String[] grades = {"A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F"};
+            
+            JPanel gradePanel = new JPanel(new GridLayout(3, 1, 10, 10));
+            JComboBox<String> gradeCombo = new JComboBox<>(grades);
+            if (!cd.letterGrade.isEmpty()) {
+                gradeCombo.setSelectedItem(cd.letterGrade);
+            }
+            
+            JLabel infoLabel = new JLabel("<html><center>Set the final letter grade for this class.<br>This is especially useful for past/archived classes.</center></html>");
+            infoLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+            
+            JCheckBox isPastCheck = new JCheckBox("Mark as Past/Archived Class", !cd.isActive);
+            isPastCheck.setToolTipText("Past classes use letter grades instead of individual assignments");
+            
+            gradePanel.add(infoLabel);
+            gradePanel.add(new JLabel("Letter Grade:"));
+            gradePanel.add(gradeCombo);
+            gradePanel.add(isPastCheck);
+            
+            int result = JOptionPane.showConfirmDialog(root, gradePanel, 
+                "Set Letter Grade - " + selectedClass, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            
+            if (result == JOptionPane.OK_OPTION) {
+                String selectedGrade = (String) gradeCombo.getSelectedItem();
+                if (selectedGrade != null) {
+                    cd.letterGrade = selectedGrade;
+                    cd.finalGrade = letterGradeToPercentage(selectedGrade);
+                    
+                    // Update active status if checkbox changed
+                    boolean wasPast = !cd.isActive;
+                    cd.isActive = !isPastCheck.isSelected();
+                    
+                    saveAllUserData();
+                    updateOverallGpaLabel();
+                    
+                    // Refresh the class list and table
+                    classList.repaint();
+                    if (wasPast != isPastCheck.isSelected()) {
+                        // Status changed, refresh the appropriate view
+                        if (showActiveBtn.isSelected()) {
+                            refreshClassTable(model, semesterName, true);
+                        } else {
+                            refreshClassTable(model, semesterName, false);
+                        }
+                    }
+                    
+                    // Update class title to show letter grade
+                    if (!cd.letterGrade.isEmpty()) {
+                        classTitle.setText(selectedClass + " - Grade: " + cd.letterGrade);
+                    }
+                    
+                    JOptionPane.showMessageDialog(root, 
+                        "Letter grade '" + selectedGrade + "' set for " + selectedClass + 
+                        (isPastCheck.isSelected() ? " (marked as past class)" : " (active class)"));
+                }
+            }
         });
 
         return root;
@@ -1793,6 +1873,13 @@ public class CollegeGPATracker {
     // ===== GPA/Percent CALCULATIONS =====
     private static double calculateClassPercent(ClassData cd) {
         if (cd == null) return 0.0;
+        
+        // If this class has a letter grade set (for past classes), use that
+        if (cd.letterGrade != null && !cd.letterGrade.isEmpty()) {
+            return letterGradeToPercentage(cd.letterGrade);
+        }
+        
+        // Otherwise, calculate from assignments as before
         double weightedTotal = 0;
         double weightSum = 0;
         for (String cat : cd.assignments.keySet()) {
@@ -1805,6 +1892,14 @@ public class CollegeGPATracker {
     }
 
     private static double calculateClassGPA(ClassData cd) {
+        if (cd == null) return 0.0;
+        
+        // If this class has a letter grade set (for past classes), use that directly
+        if (cd.letterGrade != null && !cd.letterGrade.isEmpty()) {
+            return letterGradeToGPA(cd.letterGrade);
+        }
+        
+        // Otherwise, calculate from percentage as before
         return percentToGPA(calculateClassPercent(cd));
     }
 
@@ -1828,6 +1923,44 @@ public class CollegeGPATracker {
         else if (percent >= 70) return 2.0;
         else if (percent >= 60) return 1.0;
         else return 0.0;
+    }
+    
+    // Convert letter grade to percentage for past classes
+    private static double letterGradeToPercentage(String letterGrade) {
+        return switch (letterGrade.toUpperCase()) {
+            case "A" -> 95.0;
+            case "A-" -> 90.0;
+            case "B+" -> 87.0;
+            case "B" -> 85.0;
+            case "B-" -> 80.0;
+            case "C+" -> 77.0;
+            case "C" -> 75.0;
+            case "C-" -> 70.0;
+            case "D+" -> 67.0;
+            case "D" -> 65.0;
+            case "D-" -> 60.0;
+            case "F" -> 50.0;
+            default -> 0.0;
+        };
+    }
+    
+    // Convert letter grade directly to GPA points
+    private static double letterGradeToGPA(String letterGrade) {
+        return switch (letterGrade.toUpperCase()) {
+            case "A" -> 4.0;
+            case "A-" -> 3.7;
+            case "B+" -> 3.3;
+            case "B" -> 3.0;
+            case "B-" -> 2.7;
+            case "C+" -> 2.3;
+            case "C" -> 2.0;
+            case "C-" -> 1.7;
+            case "D+" -> 1.3;
+            case "D" -> 1.0;
+            case "D-" -> 0.7;
+            case "F" -> 0.0;
+            default -> 0.0;
+        };
     }
 
     // ===== SAVE/LOAD (JSON with Gson) =====
@@ -1968,13 +2101,29 @@ public class CollegeGPATracker {
         @Override
         public Component getListCellRendererComponent(JList<? extends String> list, String value, int index,
                                                       boolean isSelected, boolean cellHasFocus) {
-            name.setText(value);
             try {
                 ClassData cd = userData.get(currentUser).get(semesterName).get(value);
-                double p = calculateClassPercent(cd);
-                bar.setValue((int)Math.round(p));
-                bar.setForeground(barColorFor(p));
-            } catch (Exception ignored) {}
+                
+                // Check if this class has a letter grade (past class)
+                if (cd.letterGrade != null && !cd.letterGrade.isEmpty()) {
+                    name.setText(value + " - " + cd.letterGrade);
+                    double p = letterGradeToPercentage(cd.letterGrade);
+                    bar.setValue((int)Math.round(p));
+                    bar.setString(cd.letterGrade + " (" + String.format("%.1f%%", p) + ")");
+                    bar.setForeground(barColorFor(p));
+                } else {
+                    // Regular class with assignments
+                    name.setText(value);
+                    double p = calculateClassPercent(cd);
+                    bar.setValue((int)Math.round(p));
+                    bar.setString(String.format("%.1f%%", p));
+                    bar.setForeground(barColorFor(p));
+                }
+            } catch (Exception ignored) {
+                name.setText(value);
+                bar.setValue(0);
+                bar.setString("No Data");
+            }
             setBackground(isSelected ? new Color(232, 244, 255) : Color.WHITE);
             return this;
         }
