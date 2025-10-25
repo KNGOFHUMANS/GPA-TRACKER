@@ -196,21 +196,63 @@ public class CollegeGPATracker {
      * Sets up data directories, loads saved data, and launches the login UI
      */
     public static void main(String[] args) {
-        ensureDataDir();                              // Create data directory if it doesn't exist
-        loadUsers();                                  // Load user accounts from JSON file
-        loadAllUserData();                           // Load all academic data from JSON file
-        PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
-        
-        // Check for existing login session
-        String savedUser = loadSession();
-        if (savedUser != null && users.containsKey(savedUser)) {
-            currentUser = savedUser;
-            ensureUserStructures(currentUser);
-            // Launch directly to dashboard
-            SwingUtilities.invokeLater(CollegeGPATracker::showDashboard);
-        } else {
-            // Launch the login UI
-            SwingUtilities.invokeLater(CollegeGPATracker::showLoginUI);
+        try {
+            // Set system look and feel for better EXE compatibility
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {
+                // Fallback to default if system L&F fails
+                System.err.println("Could not set system look and feel: " + e.getMessage());
+            }
+            
+            // Set system properties for better EXE behavior
+            System.setProperty("java.awt.headless", "false");
+            System.setProperty("file.encoding", "UTF-8");
+            
+            // Test Gson library availability for EXE compatibility
+            try {
+                gson.toJson("test");
+            } catch (Exception e) {
+                throw new RuntimeException("Gson library not available in EXE environment", e);
+            }
+            
+            ensureDataDir();                              // Create data directory if it doesn't exist
+            loadUsers();                                  // Load user accounts from JSON file
+            loadAllUserData();                           // Load all academic data from JSON file
+            PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
+            
+            // Check for existing login session
+            String savedUser = loadSession();
+            if (savedUser != null && users.containsKey(savedUser)) {
+                currentUser = savedUser;
+                ensureUserStructures(currentUser);
+                // Launch directly to dashboard
+                SwingUtilities.invokeLater(CollegeGPATracker::showDashboard);
+            } else {
+                // Launch the login UI
+                SwingUtilities.invokeLater(CollegeGPATracker::showLoginUI);
+            }
+        } catch (Exception e) {
+            // Show error dialog for EXE deployment issues
+            System.err.println("Application startup failed: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Try to show a user-friendly error dialog
+            try {
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(
+                        null,
+                        "GradeRise encountered an error during startup.\n\n" +
+                        "Error: " + e.getMessage() + "\n\n" +
+                        "Please ensure all files are in the same directory as the application.",
+                        "GradeRise - Startup Error",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                    System.exit(1);
+                });
+            } catch (Exception dialogError) {
+                System.exit(1);
+            }
         }
     }
 
@@ -1982,8 +2024,18 @@ public class CollegeGPATracker {
 
     // ===== SAVE/LOAD (JSON with Gson) =====
     private static void ensureDataDir() {
-        File d = new File(DATA_DIR);
-        if (!d.exists()) d.mkdirs();
+        try {
+            File d = new File(DATA_DIR);
+            if (!d.exists()) {
+                boolean created = d.mkdirs();
+                if (!created) {
+                    System.err.println("Warning: Could not create data directory: " + DATA_DIR);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error creating data directory: " + e.getMessage());
+            // Just log the error - fallback will be handled elsewhere if needed
+        }
     }
 
     private static void ensureUserStructures(String user) {
@@ -2009,20 +2061,41 @@ public class CollegeGPATracker {
     }
 
     private static void loadUsers() {
-        File f = new File(USERS_FILE);
-        if (f.exists()) {
-            try (FileReader fr = new FileReader(f)) {
-                Map<String, String[]> map = gson.fromJson(fr, new TypeToken<Map<String, String[]>>(){}.getType());
-                if (map != null) users = map;
-            } catch (IOException e) { e.printStackTrace(); }
-        }
+        try {
+            File f = new File(USERS_FILE);
+            if (f.exists()) {
+                try (FileReader fr = new FileReader(f)) {
+                    Map<String, String[]> map = gson.fromJson(fr, new TypeToken<Map<String, String[]>>(){}.getType());
+                    if (map != null) users = map;
+                } catch (Exception e) { 
+                    System.err.println("Error loading users file: " + e.getMessage());
+                    // Initialize with empty map if loading fails
+                    users = new HashMap<>();
+                }
+            } else {
+                // Initialize with empty map if file doesn't exist
+                users = new HashMap<>();
+            }
 
-        File f2 = new File(USERNAME_CHANGES_FILE);
-        if (f2.exists()) {
-            try (FileReader fr = new FileReader(f2)) {
-                Map<String, Long> map = gson.fromJson(fr, new TypeToken<Map<String, Long>>(){}.getType());
-                if (map != null) lastUsernameChange = map;
-            } catch (IOException e) { e.printStackTrace(); }
+            File f2 = new File(USERNAME_CHANGES_FILE);
+            if (f2.exists()) {
+                try (FileReader fr = new FileReader(f2)) {
+                    Map<String, Long> map = gson.fromJson(fr, new TypeToken<Map<String, Long>>(){}.getType());
+                    if (map != null) lastUsernameChange = map;
+                } catch (Exception e) { 
+                    System.err.println("Error loading username changes file: " + e.getMessage());
+                    // Initialize with empty map if loading fails
+                    lastUsernameChange = new HashMap<>();
+                }
+            } else {
+                // Initialize with empty map if file doesn't exist
+                lastUsernameChange = new HashMap<>();
+            }
+        } catch (Exception e) {
+            System.err.println("Critical error in loadUsers: " + e.getMessage());
+            // Ensure maps are initialized even if everything fails
+            users = new HashMap<>();
+            lastUsernameChange = new HashMap<>();
         }
     }
 
@@ -2038,51 +2111,69 @@ public class CollegeGPATracker {
     }
 
     private static void loadAllUserData() {
-        File f = new File(USERDATA_FILE);
-        if (!f.exists()) return;
-        try (FileReader fr = new FileReader(f)) {
-            // Try to load the new String-based format first
-            try {
-                Map<String, Map<String, Map<String, ClassData>>> map =
-                        gson.fromJson(fr, new TypeToken<Map<String, Map<String, Map<String, ClassData>>>>(){}.getType());
-                if (map != null) {
-                    userData = map;
-                    // Load semester order if available
-                    loadSemesterOrder();
-                    return;
-                }
-            } catch (Exception ignored) {}
+        try {
+            File f = new File(USERDATA_FILE);
+            if (!f.exists()) {
+                // Initialize empty structures if file doesn't exist
+                userData = new HashMap<>();
+                semesterOrder = new HashMap<>();
+                return;
+            }
             
-            // If that fails, try to migrate from old Integer-based format
-            try {
-                fr.close();
-                FileReader fr2 = new FileReader(f);
-                Map<String, Map<Integer, Map<String, ClassData>>> oldMap =
-                        gson.fromJson(fr2, new TypeToken<Map<String, Map<Integer, Map<String, ClassData>>>>(){}.getType());
-                if (oldMap != null) {
-                    // Migrate old format to new format
-                    for (String user : oldMap.keySet()) {
-                        Map<String, Map<String, ClassData>> newUserData = new HashMap<>();
-                        Map<String, Integer> userOrderMap = new HashMap<>();
-                        
-                        for (Integer semNum : oldMap.get(user).keySet()) {
-                            String semesterName = "Semester " + semNum;
-                            newUserData.put(semesterName, oldMap.get(user).get(semNum));
-                            userOrderMap.put(semesterName, semNum);
+            try (FileReader fr = new FileReader(f)) {
+                // Try to load the new String-based format first
+                try {
+                    Map<String, Map<String, Map<String, ClassData>>> map =
+                            gson.fromJson(fr, new TypeToken<Map<String, Map<String, Map<String, ClassData>>>>(){}.getType());
+                    if (map != null) {
+                        userData = map;
+                        // Load semester order if available
+                        loadSemesterOrder();
+                        return;
+                    }
+                } catch (Exception e) {
+                    System.err.println("Could not load new format user data: " + e.getMessage());
+                }
+                
+                // If that fails, try to migrate from old Integer-based format
+                try {
+                    fr.close();
+                    FileReader fr2 = new FileReader(f);
+                    Map<String, Map<Integer, Map<String, ClassData>>> oldMap =
+                            gson.fromJson(fr2, new TypeToken<Map<String, Map<Integer, Map<String, ClassData>>>>(){}.getType());
+                    if (oldMap != null) {
+                        // Migrate old format to new format
+                        for (String user : oldMap.keySet()) {
+                            Map<String, Map<String, ClassData>> newUserData = new HashMap<>();
+                            Map<String, Integer> userOrderMap = new HashMap<>();
+                            
+                            for (Integer semNum : oldMap.get(user).keySet()) {
+                                String semesterName = "Semester " + semNum;
+                                newUserData.put(semesterName, oldMap.get(user).get(semNum));
+                                userOrderMap.put(semesterName, semNum);
+                            }
+                            
+                            userData.put(user, newUserData);
+                            semesterOrder.put(user, userOrderMap);
                         }
                         
-                        userData.put(user, newUserData);
-                        semesterOrder.put(user, userOrderMap);
+                        // Save the migrated data
+                        saveAllUserData();
+                        System.out.println("Successfully migrated data from old format");
                     }
-                    
-                    // Save the migrated data
-                    saveAllUserData();
+                    fr2.close();
+                } catch (Exception e) {
+                    System.err.println("Error migrating old format data: " + e.getMessage());
                 }
-                fr2.close();
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException e) { 
+                System.err.println("Error reading user data file: " + e.getMessage());
             }
-        } catch (IOException e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            System.err.println("Critical error in loadAllUserData: " + e.getMessage());
+            // Ensure structures are initialized even if everything fails
+            userData = new HashMap<>();
+            semesterOrder = new HashMap<>();
+        }
     }
     
     private static void loadSemesterOrder() {

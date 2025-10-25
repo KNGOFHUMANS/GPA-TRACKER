@@ -3,7 +3,7 @@
   <dontWrapJar>false</dontWrapJar>
   <headerType>gui</headerType>
   <jar>C:\Users\malik\OneDrive\Desktop\GPAManagerApp\GradeRise-Complete.jar</jar>
-  <outfile>C:\Users\malik\OneDrive\Desktop\GradeRise.exe</outfile>
+  <outfile>C:\Users\malik\OneDrive\Desktop\GRADERISE.exe</outfile>
   <errTitle></errTitle>
   <cmdLine></cmdLine>
   <chdir>.</chdir>
