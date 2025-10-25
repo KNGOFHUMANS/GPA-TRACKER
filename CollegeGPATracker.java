@@ -24,6 +24,7 @@ import java.io.File; // For working with file system paths
 import java.io.FileReader; // For reading text files
 import java.io.FileWriter; // For writing text files
 import java.io.IOException; // Exception thrown when file operations fail
+import java.io.PrintWriter; // For writing formatted text to files
 
 // Google Gson imports - for converting objects to/from JSON format
 import com.google.gson.Gson; // Main class for JSON serialization/deserialization
@@ -196,61 +197,118 @@ public class CollegeGPATracker {
      * Sets up data directories, loads saved data, and launches the login UI
      */
     public static void main(String[] args) {
+        // Create a debug log file for Launch4j troubleshooting
         try {
-            // Set system look and feel for better EXE compatibility
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception e) {
-                // Fallback to default if system L&F fails
-                System.err.println("Could not set system look and feel: " + e.getMessage());
-            }
+            File debugFile = new File("graderise-debug.log");
+            PrintWriter debugWriter = new PrintWriter(new FileWriter(debugFile, true));
+            debugWriter.println("=== GradeRise Startup Debug Log ===");
+            debugWriter.println("Timestamp: " + new java.util.Date());
+            debugWriter.println("Java Version: " + System.getProperty("java.version"));
+            debugWriter.println("Working Directory: " + System.getProperty("user.dir"));
+            debugWriter.println("Classpath: " + System.getProperty("java.class.path"));
+            debugWriter.flush();
             
-            // Set system properties for better EXE behavior
-            System.setProperty("java.awt.headless", "false");
-            System.setProperty("file.encoding", "UTF-8");
-            
-            // Test Gson library availability for EXE compatibility
             try {
-                gson.toJson("test");
-            } catch (Exception e) {
-                throw new RuntimeException("Gson library not available in EXE environment", e);
-            }
+                // Set system look and feel for better EXE compatibility
+                try {
+                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                    debugWriter.println("✓ System Look and Feel set successfully");
+                } catch (Exception e) {
+                    // Fallback to default if system L&F fails
+                    System.err.println("Could not set system look and feel: " + e.getMessage());
+                    debugWriter.println("✗ System Look and Feel failed: " + e.getMessage());
+                }
+                
+                // Set system properties for better EXE behavior
+                System.setProperty("java.awt.headless", "false");
+                System.setProperty("file.encoding", "UTF-8");
+                debugWriter.println("✓ System properties set");
+                
+                // Test Gson library availability for EXE compatibility
+                try {
+                    gson.toJson("test");
+                    debugWriter.println("✓ Gson library test successful");
+                } catch (Exception e) {
+                    debugWriter.println("✗ Gson library test failed: " + e.getMessage());
+                    throw new RuntimeException("Gson library not available in EXE environment", e);
+                }
             
             ensureDataDir();                              // Create data directory if it doesn't exist
             loadUsers();                                  // Load user accounts from JSON file
             loadAllUserData();                           // Load all academic data from JSON file
             PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
             
-            // Check for existing login session
-            String savedUser = loadSession();
-            if (savedUser != null && users.containsKey(savedUser)) {
-                currentUser = savedUser;
-                ensureUserStructures(currentUser);
-                // Launch directly to dashboard
-                SwingUtilities.invokeLater(CollegeGPATracker::showDashboard);
-            } else {
-                // Launch the login UI
-                SwingUtilities.invokeLater(CollegeGPATracker::showLoginUI);
+                ensureDataDir();                              // Create data directory if it doesn't exist
+                debugWriter.println("✓ Data directory ensured");
+                loadUsers();                                  // Load user accounts from JSON file
+                debugWriter.println("✓ Users loaded");
+                loadAllUserData();                           // Load all academic data from JSON file
+                debugWriter.println("✓ User data loaded");
+                PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
+                debugWriter.println("✓ Password reset store initialized");
+                
+                // Check for existing login session
+                String savedUser = loadSession();
+                if (savedUser != null && users.containsKey(savedUser)) {
+                    currentUser = savedUser;
+                    ensureUserStructures(currentUser);
+                    debugWriter.println("✓ Launching dashboard for saved user: " + savedUser);
+                    // Launch directly to dashboard
+                    SwingUtilities.invokeLater(CollegeGPATracker::showDashboard);
+                } else {
+                    debugWriter.println("✓ Launching login UI");
+                    // Launch the login UI
+                    SwingUtilities.invokeLater(CollegeGPATracker::showLoginUI);
+                }
+                
+                debugWriter.println("✓ Application startup completed successfully");
+                
+            } catch (Exception e) {
+                debugWriter.println("✗ Application startup failed: " + e.getMessage());
+                debugWriter.println("Stack trace:");
+                e.printStackTrace(debugWriter);
+                debugWriter.close();
+                
+                // Show error dialog for EXE deployment issues
+                System.err.println("Application startup failed: " + e.getMessage());
+                e.printStackTrace();
+                
+                // Try to show a user-friendly error dialog
+                try {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(
+                            null,
+                            "GradeRise encountered an error during startup.\n\n" +
+                            "Error: " + e.getMessage() + "\n\n" +
+                            "Check graderise-debug.log for detailed error information.\n" +
+                            "Please ensure all files are in the same directory as the application.",
+                            "GradeRise - Startup Error",
+                            JOptionPane.ERROR_MESSAGE
+                        );
+                        System.exit(1);
+                    });
+                } catch (Exception dialogError) {
+                    System.exit(1);
+                }
             }
-        } catch (Exception e) {
-            // Show error dialog for EXE deployment issues
-            System.err.println("Application startup failed: " + e.getMessage());
-            e.printStackTrace();
             
-            // Try to show a user-friendly error dialog
+            debugWriter.close();
+        } catch (Exception logError) {
+            // Even logging failed, show basic error
+            System.err.println("Critical error - could not even create debug log: " + logError.getMessage());
             try {
                 SwingUtilities.invokeLater(() -> {
                     JOptionPane.showMessageDialog(
                         null,
-                        "GradeRise encountered an error during startup.\n\n" +
-                        "Error: " + e.getMessage() + "\n\n" +
-                        "Please ensure all files are in the same directory as the application.",
-                        "GradeRise - Startup Error",
+                        "GradeRise encountered a critical startup error.\n\n" +
+                        "Could not create debug log: " + logError.getMessage() + "\n\n" +
+                        "Please check file permissions and try running as administrator.",
+                        "GradeRise - Critical Error",
                         JOptionPane.ERROR_MESSAGE
                     );
                     System.exit(1);
                 });
-            } catch (Exception dialogError) {
+            } catch (Exception finalError) {
                 System.exit(1);
             }
         }

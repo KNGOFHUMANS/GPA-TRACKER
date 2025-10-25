@@ -1,0 +1,154 @@
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 10:43:42 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: GradeRise-Complete.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching dashboard for saved user: malik.g.jones0415
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 10:58:01 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: CollegeGPAApp.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching dashboard for saved user: malik.g.jones0415
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:07:04 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: C:\Users\malik\OneDrive\Desktop\GPAManagerApp\GradeRise.exe
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching dashboard for saved user: malik.g.jones0415
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:10:41 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: C:\Users\malik\OneDrive\Desktop\GPAManagerApp\GradeRise.exe
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:24:04 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: GradeRise-Complete-WithSecrets.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:26:16 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: GradeRise-Complete-WithSecrets.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:41:53 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: GradeRise-UberJar.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:44:56 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: C:\Users\malik\OneDrive\Desktop\GPAManagerApp\GradeRise.exe
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching dashboard for saved user: malik.g.jones0415
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:45:42 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: C:\Users\malik\OneDrive\Desktop\GPAManagerApp\GradeRise.exe
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching dashboard for saved user: malik.g.jones0415
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:52:10 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: GradeRise-UberJar.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Oct 25 11:53:56 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: GradeRise-Complete-Distribution.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching dashboard for saved user: malik.g.jones0415
+✓ Application startup completed successfully
