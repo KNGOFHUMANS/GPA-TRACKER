@@ -13,6 +13,7 @@ import java.awt.*; // Imports all AWT classes (Color, Font, Graphics, etc.)
 import java.awt.event.*; // For handling user interactions (clicks, key presses, etc.)
 import java.awt.geom.Arc2D; // For drawing pie chart arcs in the grade breakdown
 import java.awt.geom.Ellipse2D; // For drawing circles in the pie chart legend
+import java.awt.image.BufferedImage; // For creating custom images from icons
 
 // Java utility imports - for collections and data structures
 import java.util.List; // For using List interface (ordered collections)
@@ -220,11 +221,14 @@ public class CollegeGPATracker {
         frame.setSize(1000, 560);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
+        
+        // Set custom GradeRise icon
+        frame.setIconImage(iconToImage(new GradeRiseIcon(32, 32)));
 
         // Left panel with gradient background and title
         JPanel leftPanel = new GradientPanel(GRADIENT_START, GRADIENT_END);
         leftPanel.setPreferredSize(new Dimension(420, 0));
-        JLabel msg = new JLabel("<html><center>🎓<br><span style='font-size:20pt'>Your College<br>GPA Tracker</span></center></html>", SwingConstants.CENTER);
+        JLabel msg = new JLabel("<html><center><span style='font-size:36pt'>🎓</span><br><span style='font-size:20pt; font-weight:bold'>GradeRise</span><br><span style='font-size:14pt'>Rise Above Average</span></center></html>", SwingConstants.CENTER);
         msg.setFont(new Font("SansSerif", Font.BOLD, 28));
         msg.setForeground(Color.WHITE);
         leftPanel.setLayout(new BorderLayout());
@@ -629,6 +633,9 @@ public class CollegeGPATracker {
         frame.setSize(1150, 720);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
+        
+        // Set custom GradeRise icon
+        frame.setIconImage(iconToImage(new GradeRiseIcon(32, 32)));
 
         JMenuBar menuBar = new JMenuBar();
         JMenu userMenu = new JMenu("User");
@@ -1817,6 +1824,16 @@ public class CollegeGPATracker {
         return new ImageIcon(out);
     }
 
+    // Helper method to create BufferedImage from Icon for window icons
+    private static BufferedImage iconToImage(Icon icon) {
+        BufferedImage img = new BufferedImage(icon.getIconWidth(), icon.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        icon.paintIcon(null, g2, 0, 0);
+        g2.dispose();
+        return img;
+    }
+
     private static void applyTheme(java.awt.Container root) {
         if (darkMode) {
             root.setBackground(RIGHT_BG_DARK);
@@ -2245,6 +2262,60 @@ public class CollegeGPATracker {
     }
 
     // Small painted Google-style 'G' icon (no external assets)
+    static class GradeRiseIcon implements Icon {
+        private final int w, h;
+        GradeRiseIcon(int w, int h) { this.w = w; this.h = h; }
+        @Override public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            // Scale factor for responsive sizing
+            float scale = Math.min(w, h) / 32.0f;
+            
+            // Colors from GradeRise branding - red/coral background with dark graduation cap
+            Color bgColor = new Color(240, 82, 82); // Coral red background
+            Color capColor = new Color(139, 34, 52); // Dark red for graduation cap
+            Color tassColor = new Color(220, 150, 50); // Gold for tassel
+            
+            // Background (optional subtle circle)
+            int bgSize = (int)(w * 0.9f);
+            int bgX = x + (w - bgSize) / 2;
+            int bgY = y + (h - bgSize) / 2;
+            
+            // Draw subtle circular background using bgColor (previously unused)
+            g2.setColor(bgColor);
+            g2.fillOval(bgX, bgY, bgSize, bgSize);
+            
+            // Draw graduation cap
+            int capSize = (int)(Math.min(w, h) * 0.7f);
+            int capX = x + (w - capSize) / 2;
+            int capY = y + (h - capSize) / 2;
+            
+            // Cap base (mortarboard)
+            g2.setColor(capColor);
+            int capWidth = (int)(capSize * 0.8f);
+            int capHeight = (int)(capSize * 0.3f);
+            g2.fillRoundRect(capX + (capSize - capWidth)/2, capY + capHeight/2, capWidth, capHeight/2, 2, 2);
+            
+            // Cap top (flat square)
+            int topSize = (int)(capSize * 0.9f);
+            g2.fillRoundRect(capX + (capSize - topSize)/2, capY, topSize, capHeight/2, 3, 3);
+            
+            // Tassel
+            g2.setColor(tassColor);
+            g2.setStroke(new BasicStroke(Math.max(1, scale * 2), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int tasselX = capX + topSize - 2;
+            int tasselY = capY + 2;
+            g2.drawLine(tasselX, tasselY, tasselX + (int)(scale * 6), tasselY + (int)(scale * 8));
+            g2.drawLine(tasselX + (int)(scale * 6), tasselY + (int)(scale * 8), 
+                       tasselX + (int)(scale * 4), tasselY + (int)(scale * 12));
+            
+            g2.dispose();
+        }
+        @Override public int getIconWidth() { return w; }
+        @Override public int getIconHeight() { return h; }
+    }
+
     static class GoogleIcon implements Icon {
         private final int w, h;
         GoogleIcon(int w, int h) { this.w = w; this.h = h; }
