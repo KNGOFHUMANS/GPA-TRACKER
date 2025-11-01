@@ -233,16 +233,26 @@ public class CollegeGPATracker {
                     throw new RuntimeException("Gson library not available in EXE environment", e);
                 }
             
-            ensureDataDir();                              // Create data directory if it doesn't exist
-            loadUsers();                                  // Load user accounts from JSON file
-            loadAllUserData();                           // Load all academic data from JSON file
-            PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
-            
                 ensureDataDir();                              // Create data directory if it doesn't exist
                 debugWriter.println("✓ Data directory ensured");
-                loadUsers();                                  // Load user accounts from JSON file
+                
+                // Initialize database system
+                try {
+                    DatabaseManager.initialize();
+                    debugWriter.println("✓ Database initialized");
+                    
+                    // Run data migration if needed
+                    DataMigration.migrateAllData();
+                    debugWriter.println("✓ Data migration completed");
+                } catch (Exception e) {
+                    debugWriter.println("✗ Database initialization failed: " + e.getMessage());
+                    // Fallback to JSON system
+                    debugWriter.println("Falling back to JSON file system");
+                }
+                
+                loadUsers();                                  // Load user accounts from database/JSON file
                 debugWriter.println("✓ Users loaded");
-                loadAllUserData();                           // Load all academic data from JSON file
+                loadAllUserData();                           // Load all academic data from database/JSON file
                 debugWriter.println("✓ User data loaded");
                 PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
                 debugWriter.println("✓ Password reset store initialized");
@@ -503,57 +513,124 @@ public class CollegeGPATracker {
         frame.add(leftPanel, BorderLayout.WEST);
         frame.add(rightPanel, BorderLayout.CENTER);
 
-        // LOGIN
+        // LOGIN - Enhanced with security features
         loginBtn.addActionListener(_ -> {
             String id = usernameOrEmail.getText().trim();
             String pass = new String(password.getPassword());
-            String user = id;
-
-            if (!users.containsKey(user)) user = findUserByEmail(id);
-
-            if (user != null && users.containsKey(user) && Objects.equals(users.get(user)[0], pass)) {
-                currentUser = user;
-                ensureUserStructures(currentUser);
-                saveSession(currentUser);  // Save login session
-                frame.dispose();
-                showDashboard();
-            } else {
-                JOptionPane.showMessageDialog(frame, "Invalid credentials.");
+            
+            // Get client identifier for rate limiting (could use IP in production)
+            String clientIdentifier = System.getProperty("user.name") + "_" + 
+                                    System.getProperty("os.name").replaceAll("\\s", "");
+            
+            try {
+                // Use secure authentication with rate limiting
+                String authenticatedUser = DatabaseManager.authenticateUser(id, pass, clientIdentifier);
+                
+                if (authenticatedUser != null) {
+                    currentUser = authenticatedUser;
+                    ensureUserStructures(currentUser);
+                    
+                    // Create secure session
+                    String sessionToken = SecurityManager.createSession(currentUser);
+                    if (sessionToken != null) {
+                        saveSession(currentUser);  // Save login session for compatibility
+                    }
+                    
+                    SecurityManager.logSecurityEvent("Login successful", currentUser, true);
+                    frame.dispose();
+                    showDashboard();
+                } else {
+                    // Check if user is rate limited
+                    if (SecurityManager.isRateLimited(clientIdentifier)) {
+                        long remaining = SecurityManager.getRemainingLockoutSeconds(clientIdentifier);
+                        JOptionPane.showMessageDialog(frame, 
+                            "Too many failed login attempts.\n" +
+                            "Please try again in " + remaining + " seconds.",
+                            "Account Temporarily Locked",
+                            JOptionPane.WARNING_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(frame, "Invalid credentials.");
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Login error: " + e.getMessage());
+                SecurityManager.logSecurityEvent("Login error", id, false);
+                JOptionPane.showMessageDialog(frame, "Login failed due to system error.");
             }
         });
 
-        // SIGNUP
+        // SIGNUP - Enhanced with security validation
         signupBtn.addActionListener(_ -> {
-            String newUser = JOptionPane.showInputDialog(frame, "Choose a username:");
-            if (newUser == null || newUser.trim().isEmpty()) return;
-            if (users.containsKey(newUser)) {
-                JOptionPane.showMessageDialog(frame, "Username already exists!");
-                return;
+            try {
+                String newUser = JOptionPane.showInputDialog(frame, "Choose a username:");
+                if (newUser == null || newUser.trim().isEmpty()) return;
+                
+                // Validate username format
+                String validatedUsername = SecurityManager.validateUsername(newUser);
+                
+                // Check if user exists in database first
+                if (DatabaseManager.getUserId(validatedUsername) != -1) {
+                    JOptionPane.showMessageDialog(frame, "Username already exists!");
+                    return;
+                }
+                
+                String email = JOptionPane.showInputDialog(frame, "Enter email:");
+                if (email == null || email.trim().isEmpty()) return;
+                
+                // Validate email format
+                String validatedEmail = SecurityManager.validateEmail(email);
+                
+                // Check if email already exists
+                if (DatabaseManager.findUserByEmail(validatedEmail) != null) {
+                    JOptionPane.showMessageDialog(frame, "Email already used.");
+                    return;
+                }
+                
+                JPasswordField p1 = new JPasswordField();
+                JPasswordField p2 = new JPasswordField();
+                int ok = JOptionPane.showConfirmDialog(frame, 
+                    new Object[]{"Password:", p1,"Confirm Password:", p2}, 
+                    "Create password", JOptionPane.OK_CANCEL_OPTION);
+                if (ok != JOptionPane.OK_OPTION) return;
+                
+                String newPass = new String(p1.getPassword());
+                String confirmPass = new String(p2.getPassword());
+                if (newPass.isEmpty() || !newPass.equals(confirmPass)) {
+                    JOptionPane.showMessageDialog(frame, "Passwords don't match.");
+                    return;
+                }
+                
+                // Validate password strength
+                SecurityManager.validatePassword(newPass);
+                
+                // Create user securely with bcrypt hashing
+                if (DatabaseManager.createUserSecure(validatedUsername, newPass, validatedEmail)) {
+                    // Also add to legacy users map for compatibility
+                    String hashedPassword = SecurityManager.hashPassword(newPass);
+                    users.put(validatedUsername, new String[]{hashedPassword, validatedEmail});
+                    lastUsernameChange.put(validatedUsername, System.currentTimeMillis());
+                    ensureUserStructures(validatedUsername);
+                    saveUsers();
+                    saveAllUserData();
+                    
+                    String strength = SecurityManager.getPasswordStrength(newPass);
+                    JOptionPane.showMessageDialog(frame, 
+                        "Account created successfully!\n" +
+                        "Password strength: " + strength + "\n" +
+                        "Please log in with your new credentials.");
+                } else {
+                    JOptionPane.showMessageDialog(frame, "Failed to create account. Please try again.");
+                }
+                
+            } catch (SecurityException e) {
+                JOptionPane.showMessageDialog(frame, 
+                    "Account creation failed:\n" + e.getMessage(), 
+                    "Validation Error", 
+                    JOptionPane.WARNING_MESSAGE);
+            } catch (Exception e) {
+                System.err.println("Signup error: " + e.getMessage());
+                JOptionPane.showMessageDialog(frame, "Account creation failed due to system error.");
             }
-            String email = JOptionPane.showInputDialog(frame, "Enter email:");
-            if (email == null || email.trim().isEmpty()) return;
-            if (findUserByEmail(email) != null) {
-                JOptionPane.showMessageDialog(frame, "Email already used.");
-                return;
-            }
-            JPasswordField p1 = new JPasswordField();
-            JPasswordField p2 = new JPasswordField();
-            int ok = JOptionPane.showConfirmDialog(frame, new Object[]{"Password:", p1,"Confirm Password:", p2}, "Create password", JOptionPane.OK_CANCEL_OPTION);
-            if (ok != JOptionPane.OK_OPTION) return;
-            String newPass = new String(p1.getPassword());
-            String confirmPass = new String(p2.getPassword());
-            if (newPass.isEmpty() || !newPass.equals(confirmPass)) {
-                JOptionPane.showMessageDialog(frame, "Passwords don't match.");
-                return;
-            }
-
-            users.put(newUser, new String[]{newPass, email});
-            lastUsernameChange.put(newUser, System.currentTimeMillis());
-            ensureUserStructures(newUser);
-            saveUsers();
-            saveAllUserData();
-
-            JOptionPane.showMessageDialog(frame, "Account created! Please log in.");
         });
 
         // FORGOT PASSWORD: prompt for email, generate a transient token, attempt to send it by email.
@@ -628,9 +705,8 @@ public class CollegeGPATracker {
 
         // GOOGLE SIGN-IN (OAuth; requires GoogleSignIn.java and client_secret.json)
         googleBtn.addActionListener(_ -> {
-           try {
-               System.out.println("DEBUG: Starting Google Sign-In process...");
-               
+        try {
+            System.out.println("DEBUG: Starting Google Sign-In process...");
                // Show progress dialog
                JDialog progressDialog = new JDialog(frame, "Google Sign-In", true);
                progressDialog.setSize(300, 150);
@@ -733,6 +809,8 @@ public class CollegeGPATracker {
         frame.setSize(1150, 720);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
+        // add color scheme
+        frame.getContentPane().setBackground(Color.darkGray);
         
         // Set custom GradeRise icon
         frame.setIconImage(iconToImage(new GradeRiseIcon(32, 32)));
@@ -2120,21 +2198,26 @@ public class CollegeGPATracker {
 
     private static void loadUsers() {
         try {
-            File f = new File(USERS_FILE);
-            if (f.exists()) {
-                try (FileReader fr = new FileReader(f)) {
-                    Map<String, String[]> map = gson.fromJson(fr, new TypeToken<Map<String, String[]>>(){}.getType());
-                    if (map != null) users = map;
-                } catch (Exception e) { 
-                    System.err.println("Error loading users file: " + e.getMessage());
-                    // Initialize with empty map if loading fails
+            // Try loading from database first
+            users = DatabaseManager.getAllUsers();
+            
+            if (users.isEmpty()) {
+                // Fallback to JSON file system if database is empty
+                File f = new File(USERS_FILE);
+                if (f.exists()) {
+                    try (FileReader fr = new FileReader(f)) {
+                        Map<String, String[]> map = gson.fromJson(fr, new TypeToken<Map<String, String[]>>(){}.getType());
+                        if (map != null) users = map;
+                    } catch (Exception e) { 
+                        System.err.println("Error loading users file: " + e.getMessage());
+                        users = new HashMap<>();
+                    }
+                } else {
                     users = new HashMap<>();
                 }
-            } else {
-                // Initialize with empty map if file doesn't exist
-                users = new HashMap<>();
             }
 
+            // Load username changes (still from JSON for now)
             File f2 = new File(USERNAME_CHANGES_FILE);
             if (f2.exists()) {
                 try (FileReader fr = new FileReader(f2)) {
@@ -2142,11 +2225,9 @@ public class CollegeGPATracker {
                     if (map != null) lastUsernameChange = map;
                 } catch (Exception e) { 
                     System.err.println("Error loading username changes file: " + e.getMessage());
-                    // Initialize with empty map if loading fails
                     lastUsernameChange = new HashMap<>();
                 }
             } else {
-                // Initialize with empty map if file doesn't exist
                 lastUsernameChange = new HashMap<>();
             }
         } catch (Exception e) {
@@ -2170,65 +2251,38 @@ public class CollegeGPATracker {
 
     private static void loadAllUserData() {
         try {
-            File f = new File(USERDATA_FILE);
-            if (!f.exists()) {
-                // Initialize empty structures if file doesn't exist
-                userData = new HashMap<>();
-                semesterOrder = new HashMap<>();
-                return;
-            }
+            userData = new HashMap<>();
+            semesterOrder = new HashMap<>();
             
-            try (FileReader fr = new FileReader(f)) {
-                // Try to load the new String-based format first
-                try {
-                    Map<String, Map<String, Map<String, ClassData>>> map =
-                            gson.fromJson(fr, new TypeToken<Map<String, Map<String, Map<String, ClassData>>>>(){}.getType());
-                    if (map != null) {
-                        userData = map;
-                        // Load semester order if available
-                        loadSemesterOrder();
-                        return;
-                    }
-                } catch (Exception e) {
-                    System.err.println("Could not load new format user data: " + e.getMessage());
+            // For now, we'll load from database later - after resolving circular dependencies
+            // The migration will have already moved the data to the database
+            
+            // Fallback to JSON if database is empty
+            if (userData.isEmpty()) {
+                File f = new File(USERDATA_FILE);
+                if (!f.exists()) {
+                    return;
                 }
                 
-                // If that fails, try to migrate from old Integer-based format
-                try {
-                    fr.close();
-                    FileReader fr2 = new FileReader(f);
-                    Map<String, Map<Integer, Map<String, ClassData>>> oldMap =
-                            gson.fromJson(fr2, new TypeToken<Map<String, Map<Integer, Map<String, ClassData>>>>(){}.getType());
-                    if (oldMap != null) {
-                        // Migrate old format to new format
-                        for (String user : oldMap.keySet()) {
-                            Map<String, Map<String, ClassData>> newUserData = new HashMap<>();
-                            Map<String, Integer> userOrderMap = new HashMap<>();
-                            
-                            for (Integer semNum : oldMap.get(user).keySet()) {
-                                String semesterName = "Semester " + semNum;
-                                newUserData.put(semesterName, oldMap.get(user).get(semNum));
-                                userOrderMap.put(semesterName, semNum);
-                            }
-                            
-                            userData.put(user, newUserData);
-                            semesterOrder.put(user, userOrderMap);
+                try (FileReader fr = new FileReader(f)) {
+                    // Try to load the new String-based format first
+                    try {
+                        Map<String, Map<String, Map<String, ClassData>>> map =
+                                gson.fromJson(fr, new TypeToken<Map<String, Map<String, Map<String, ClassData>>>>(){}.getType());
+                        if (map != null) {
+                            userData = map;
+                            loadSemesterOrder();
+                            return;
                         }
-                        
-                        // Save the migrated data
-                        saveAllUserData();
-                        System.out.println("Successfully migrated data from old format");
+                    } catch (Exception e) {
+                        System.err.println("Could not load new format user data: " + e.getMessage());
                     }
-                    fr2.close();
-                } catch (Exception e) {
-                    System.err.println("Error migrating old format data: " + e.getMessage());
+                } catch (IOException e) { 
+                    System.err.println("Error reading user data file: " + e.getMessage());
                 }
-            } catch (IOException e) { 
-                System.err.println("Error reading user data file: " + e.getMessage());
             }
         } catch (Exception e) {
             System.err.println("Critical error in loadAllUserData: " + e.getMessage());
-            // Ensure structures are initialized even if everything fails
             userData = new HashMap<>();
             semesterOrder = new HashMap<>();
         }

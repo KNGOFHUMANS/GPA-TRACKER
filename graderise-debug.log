@@ -152,3 +152,65 @@ Classpath: GradeRise-Complete-Distribution.jar
 ✓ Password reset store initialized
 ✓ Launching dashboard for saved user: malik.g.jones0415
 ✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Nov 01 12:31:32 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: C:\Users\malik\AppData\Roaming\Code\User\workspaceStorage\4525fc33da0581c9668da0e325f08212\redhat.java\jdt_ws\GPAManagerApp_5ea180c2\bin;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\commons-logging-1.2.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-oauth-client-java6-1.34.1.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\grpc-core-1.60.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\jakarta.mail-2.0.1.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\grpc-protobuf-1.60.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\grpc-api-1.60.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\guava-32.1.2-jre.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-oauth-client-jetty-1.34.1.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\opencensus-api-0.28.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-http-client-gson-1.43.3.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-api-client-1.34.1.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-oauth-client-1.34.1.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\gson-2.10.1.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\grpc-stub-1.60.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\grpc-context-1.60.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\jakarta.activation-2.0.1.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\opencensus-contrib-http-util-0.28.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-api-services-oauth2-v2-rev157-1.25.0.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\jackson-core-2.17.2.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-http-client-1.43.3.jar;c:\Users\malik\OneDrive\Desktop\GPAManagerApp\libs\google-http-client-jackson2-1.43.3.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching dashboard for saved user: malik.g.jones0415
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Nov 01 13:18:33 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: libs/commons-logging-1.2.jar;libs/google-api-client-1.34.1.jar;libs/google-api-services-oauth2-v2-rev157-1.25.0.jar;libs/google-http-client-1.43.3.jar;libs/google-http-client-gson-1.43.3.jar;libs/google-http-client-jackson2-1.43.3.jar;libs/google-oauth-client-1.34.1.jar;libs/google-oauth-client-java6-1.34.1.jar;libs/google-oauth-client-jetty-1.34.1.jar;libs/grpc-api-1.60.0.jar;libs/grpc-context-1.60.0.jar;libs/grpc-core-1.60.0.jar;libs/grpc-protobuf-1.60.0.jar;libs/grpc-stub-1.60.0.jar;libs/gson-2.10.1.jar;libs/guava-32.1.2-jre.jar;libs/jackson-core-2.17.2.jar;libs/jakarta.activation-2.0.1.jar;libs/jakarta.mail-2.0.1.jar;libs/opencensus-api-0.28.0.jar;libs/opencensus-contrib-http-util-0.28.0.jar;libs/slf4j-api-2.0.9.jar;libs/slf4j-simple-2.0.9.jar;libs/sqlite-jdbc-3.44.1.0.jar;.
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Database initialized
+✓ Data migration completed
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Nov 01 13:51:49 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: libs/commons-logging-1.2.jar;libs/google-api-client-1.34.1.jar;libs/google-api-services-oauth2-v2-rev157-1.25.0.jar;libs/google-http-client-1.43.3.jar;libs/google-http-client-gson-1.43.3.jar;libs/google-http-client-jackson2-1.43.3.jar;libs/google-oauth-client-1.34.1.jar;libs/google-oauth-client-java6-1.34.1.jar;libs/google-oauth-client-jetty-1.34.1.jar;libs/grpc-api-1.60.0.jar;libs/grpc-context-1.60.0.jar;libs/grpc-core-1.60.0.jar;libs/grpc-protobuf-1.60.0.jar;libs/grpc-stub-1.60.0.jar;libs/gson-2.10.1.jar;libs/guava-32.1.2-jre.jar;libs/jackson-core-2.17.2.jar;libs/jakarta.activation-2.0.1.jar;libs/jakarta.mail-2.0.1.jar;libs/opencensus-api-0.28.0.jar;libs/opencensus-contrib-http-util-0.28.0.jar;libs/slf4j-api-2.0.9.jar;libs/slf4j-simple-2.0.9.jar;libs/sqlite-jdbc-3.44.1.0.jar;.
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Database initialized
+✓ Data migration completed
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Sat Nov 01 16:28:26 EDT 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: libs/commons-logging-1.2.jar;libs/google-api-client-1.34.1.jar;libs/google-api-services-oauth2-v2-rev157-1.25.0.jar;libs/google-http-client-1.43.3.jar;libs/google-http-client-gson-1.43.3.jar;libs/google-http-client-jackson2-1.43.3.jar;libs/google-oauth-client-1.34.1.jar;libs/google-oauth-client-java6-1.34.1.jar;libs/google-oauth-client-jetty-1.34.1.jar;libs/grpc-api-1.60.0.jar;libs/grpc-context-1.60.0.jar;libs/grpc-core-1.60.0.jar;libs/grpc-protobuf-1.60.0.jar;libs/grpc-stub-1.60.0.jar;libs/gson-2.10.1.jar;libs/guava-32.1.2-jre.jar;libs/jackson-core-2.17.2.jar;libs/jakarta.activation-2.0.1.jar;libs/jakarta.mail-2.0.1.jar;libs/jbcrypt-0.4.jar;libs/opencensus-api-0.28.0.jar;libs/opencensus-contrib-http-util-0.28.0.jar;libs/slf4j-api-2.0.9.jar;libs/slf4j-simple-2.0.9.jar;libs/sqlite-jdbc-3.44.1.0.jar;.
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Database initialized
+✓ Data migration completed
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Launching login UI
+✓ Application startup completed successfully
