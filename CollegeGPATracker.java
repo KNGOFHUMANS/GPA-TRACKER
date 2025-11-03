@@ -19,6 +19,9 @@ import java.awt.image.BufferedImage; // For creating custom images from icons
 import java.util.List; // For using List interface (ordered collections)
 import java.util.*; // Imports all utility classes (Map, HashMap, ArrayList, etc.)
 
+// Import external Assignment class to avoid name collision
+// (Note: This line will import the external Assignment.class file)
+
 // File I/O imports - for reading and writing data to files
 import java.io.File; // For working with file system paths
 import java.io.FileReader; // For reading text files
@@ -57,8 +60,7 @@ public class CollegeGPATracker {
     // Maps username -> semesterName -> order number
     private static Map<String, Map<String, Integer>> semesterOrder = new HashMap<>();
     
-    // Boolean flag to track if dark mode is enabled for the UI
-    private static boolean darkMode = false;
+
 
     // ===== FILE PATHS AND CONSTANTS =====
     // Directory name where all data files are stored
@@ -114,12 +116,7 @@ public class CollegeGPATracker {
     private static final Color SUCCESS_GREEN = SUCCESS_EMERALD;
     private static final Color WARNING_ORANGE = WARNING_AMBER;
 
-    // Dark theme colors for login screen
-    private static final Color RIGHT_BG_DARK = new Color(0x4B5563);
-    private static final Color CARD_BG_DARK = new Color(0x6B7280);
-    private static final Color INPUT_BG_DARK = new Color(0x9CA3AF);
-    private static final Color INPUT_BORDER_DARK = new Color(0xD1D5DB);
-    private static final Color PRIMARY_DARK = BRAND_PRIMARY;
+
 
     // Label that displays the overall GPA on the dashboard
     private static JLabel overallGpaLabel;
@@ -257,6 +254,14 @@ public class CollegeGPATracker {
                 PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
                 debugWriter.println("✓ Password reset store initialized");
                 
+                // Initialize modern theme system
+                try {
+                    ModernThemeSystem.initialize();
+                    debugWriter.println("✓ Modern theme system initialized");
+                } catch (Exception e) {
+                    debugWriter.println("✗ Modern theme system failed: " + e.getMessage());
+                }
+                
                 // Check for existing login session
                 String savedUser = loadSession();
                 if (savedUser != null && users.containsKey(savedUser)) {
@@ -280,7 +285,7 @@ public class CollegeGPATracker {
                 debugWriter.close();
                 
                 // Show error dialog for EXE deployment issues
-                System.err.println("Application startup failed: " + e.getMessage());
+                System.err.println("Me No Work try Later: " + e.getMessage());
                 e.printStackTrace();
                 
                 // Try to show a user-friendly error dialog
@@ -326,9 +331,9 @@ public class CollegeGPATracker {
 
     // ===== LOGIN PAGE =====
     private static void showLoginUI() {
-        // Modern login UI with gradient background and card-style form
-        JFrame frame = new JFrame("Login - GPA Tracker");
-        frame.setSize(1000, 560);
+        // Modern login UI with gradient background and card-style form using ModernUIFramework
+        JFrame frame = new JFrame("GradeRise - Login");
+        frame.setSize(1000, 600);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
         
@@ -345,170 +350,159 @@ public class CollegeGPATracker {
         leftPanel.add(msg, BorderLayout.CENTER);
         leftPanel.setBorder(new EmptyBorder(0, 20, 0, 20));
 
-        // Right panel with dark background for the login form
-        JPanel rightPanel = new JPanel(new BorderLayout());
-        rightPanel.setBackground(RIGHT_BG_DARK);
+        // Right panel with modern UI framework styling
+        JPanel rightPanel = new JPanel(new GridBagLayout());
+        rightPanel.setBackground(ModernUIFramework.getTheme().background);
 
-        // Card-style login box (stacked, centered)
-    JPanel loginBox = new JPanel();
-    loginBox.setLayout(new BoxLayout(loginBox, BoxLayout.Y_AXIS));
-    loginBox.setBackground(CARD_BG_DARK);
-    loginBox.setBorder(BorderFactory.createCompoundBorder(
-        BorderFactory.createLineBorder(INPUT_BORDER_DARK, 1, true),
-        new EmptyBorder(28, 28, 28, 28)
-    ));
-    loginBox.setMaximumSize(new Dimension(420, 420));
+        // Modern login card - using JPanel temporarily to avoid layout conflicts
+        JPanel loginCard = new JPanel();
+        loginCard.setLayout(new BoxLayout(loginCard, BoxLayout.Y_AXIS));
+        loginCard.setPreferredSize(new Dimension(400, 500));
+        loginCard.setMaximumSize(new Dimension(400, 500));
+        loginCard.setBackground(ModernUIFramework.getTheme().surface);
+        loginCard.setBorder(new EmptyBorder(32, 32, 32, 32));
 
-    // Inputs
-    JTextField usernameOrEmail = new PlaceholderTextField("Username or email");
-    JPasswordField password = new PlaceholderPasswordField("Password");
-    // center text and use a slightly darker foreground for better contrast
-    usernameOrEmail.setHorizontalAlignment(SwingConstants.CENTER);
-    usernameOrEmail.setForeground(new Color(40,40,40));
-    password.setHorizontalAlignment(SwingConstants.CENTER);
-    password.setForeground(new Color(40,40,40));
-    // make the text fields a consistent size so rows align
-    Dimension inputPref = new Dimension(360, 48);
-    usernameOrEmail.setPreferredSize(inputPref);
-    password.setPreferredSize(inputPref);
+        // GradeRise brand header
+        JLabel brandLabel = new JLabel("GradeRise", SwingConstants.CENTER);
+        brandLabel.setFont(new Font("SansSerif", Font.BOLD, 32));
+        brandLabel.setForeground(ModernUIFramework.getTheme().primary);
+        brandLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        brandLabel.setBorder(new EmptyBorder(0, 0, 10, 0));
+        
+        JLabel welcomeLabel = new JLabel("Welcome Back", SwingConstants.CENTER);
+        welcomeLabel.setFont(new Font("SansSerif", Font.BOLD, 24));
+        welcomeLabel.setForeground(ModernUIFramework.getTheme().onSurface);
+        welcomeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        welcomeLabel.setBorder(new EmptyBorder(0, 0, 8, 0));
+        
+        JLabel subtitleLabel = new JLabel("Sign in to your account", SwingConstants.CENTER);
+        subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        subtitleLabel.setForeground(ModernUIFramework.getTheme().onSurface);
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        subtitleLabel.setBorder(new EmptyBorder(0, 0, 25, 0));
 
-    // helper to create an input row with left icon and rounded background
-    java.util.function.BiFunction<Icon, JComponent, JComponent> makeRow = (ic, comp) -> {
-        JPanel row = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // fill rounded background
-                g2.setColor(getBackground());
-                int arc = 14;
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
-                // draw border
-                g2.setColor(INPUT_BORDER_DARK);
-                g2.setStroke(new BasicStroke(1f));
-                g2.drawRoundRect(0, 0, getWidth()-1, getHeight()-1, arc, arc);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        row.setOpaque(false); // we paint the background ourselves
-        row.setBackground(INPUT_BG_DARK);
-        // icon area sized to keep icon centered vertically and give padding
-    Icon smallIc = sizedIcon(ic, 18);
-    JLabel iconLabel = new JLabel(smallIc);
-        iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        iconLabel.setPreferredSize(new Dimension(42, 48));
-        iconLabel.setBorder(new EmptyBorder(0, 8, 0, 8));
-        row.add(iconLabel, BorderLayout.WEST);
-        // make the input component transparent so the rounded bg shows through
-        comp.setBorder(BorderFactory.createEmptyBorder(6,8,6,8));
-        if (comp instanceof JComponent) {
-            ((JComponent) comp).setOpaque(false);
-        }
-        row.add(comp, BorderLayout.CENTER);
-        row.setBorder(new EmptyBorder(2,2,2,2));
-        row.setMaximumSize(new Dimension(360, 48));
-        return row;
-    };
+        // Modern input fields with clean placeholder styling
+        PlaceholderTextField usernameOrEmail = new PlaceholderTextField("Email");
+        usernameOrEmail.setAlignmentX(Component.CENTER_ALIGNMENT);
+        usernameOrEmail.setMaximumSize(new Dimension(370, 56));
+        usernameOrEmail.setPreferredSize(new Dimension(370, 56));
+        usernameOrEmail.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        usernameOrEmail.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 220, 220), 1, true),
+            BorderFactory.createEmptyBorder(12, 16, 12, 16)
+        ));
+        usernameOrEmail.setBackground(Color.WHITE);
+        usernameOrEmail.setForeground(new Color(50, 50, 50));
+        
+        PlaceholderPasswordField password = new PlaceholderPasswordField("Password");
+        password.setAlignmentX(Component.CENTER_ALIGNMENT);
+        password.setMaximumSize(new Dimension(370, 56));
+        password.setPreferredSize(new Dimension(370, 56));
+        password.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        password.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 220, 220), 1, true),
+            BorderFactory.createEmptyBorder(12, 16, 12, 16)
+        ));
+        password.setBackground(Color.WHITE);
+        password.setForeground(new Color(50, 50, 50));
+        password.setEchoChar('•');
 
-    Icon userIc = UIManager.getIcon("FileView.fileIcon");
-    Icon lockIc = UIManager.getIcon("FileView.hardDriveIcon");
-    // fallback simple icons (person/lock) with slightly larger size to fit the rounded row
-    if (userIc == null) userIc = new PersonIcon(18,18);
-    if (lockIc == null) lockIc = new LockIcon(18,18);
+        // Modern UI components are created above - old row creation code removed
 
-    JComponent userRow = makeRow.apply(userIc, usernameOrEmail);
-    JComponent passRow = makeRow.apply(lockIc, password);
-    // enforce consistent sizes and alignment for rows
-    userRow.setPreferredSize(new Dimension(360, 48));
-    passRow.setPreferredSize(new Dimension(360, 48));
-    userRow.setAlignmentX(Component.CENTER_ALIGNMENT);
-    passRow.setAlignmentX(Component.CENTER_ALIGNMENT);
+        // Modern buttons with clean styling to match target design
+        JButton loginBtn = new JButton("Sign In");
+        loginBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        loginBtn.setMaximumSize(new Dimension(370, 52));
+        loginBtn.setPreferredSize(new Dimension(370, 52));
+        loginBtn.setFont(new Font("SansSerif", Font.BOLD, 16));
+        loginBtn.setBackground(new Color(193, 80, 122)); // Rose/pink primary from Lavender theme
+        loginBtn.setForeground(Color.WHITE);
+        loginBtn.setBorderPainted(false);
+        loginBtn.setFocusPainted(false);
+        loginBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        loginBtn.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
 
-    // Buttons: primary blue login + secondary actions (dark styles)
-    JButton loginBtn = pillButton("Login");
-    loginBtn.setBackground(PRIMARY_DARK);
-    loginBtn.setForeground(Color.WHITE);
-    loginBtn.setFont(new Font("SansSerif", Font.BOLD, 16));
-    loginBtn.setMaximumSize(new Dimension(360, 46));
-    loginBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JButton signupBtn = new JButton("Create Account");
+        signupBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        signupBtn.setMaximumSize(new Dimension(370, 52));
+        signupBtn.setPreferredSize(new Dimension(370, 52));
+        signupBtn.setFont(new Font("SansSerif", Font.BOLD, 16));
+        signupBtn.setBackground(Color.WHITE);
+        signupBtn.setForeground(new Color(193, 80, 122));
+        signupBtn.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(193, 80, 122), 2, true),
+            BorderFactory.createEmptyBorder(12, 20, 12, 20)
+        ));
+        signupBtn.setFocusPainted(false);
+        signupBtn.setContentAreaFilled(false);
+        signupBtn.setOpaque(true);
+        signupBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-    JButton signupBtn = pillButton("Create account");
-    signupBtn.setMaximumSize(new Dimension(360, 42));
-    signupBtn.setBackground(new Color(0x2A2F33));
-    signupBtn.setForeground(Color.WHITE);
-    signupBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        // Google Sign-In button with clean styling
+        JButton googleBtn = new JButton("Sign in with Google");
+        googleBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        googleBtn.setMaximumSize(new Dimension(370, 52));
+        googleBtn.setPreferredSize(new Dimension(370, 52));
+        googleBtn.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        googleBtn.setBackground(Color.WHITE);
+        googleBtn.setForeground(new Color(50, 50, 50));
+        googleBtn.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 220, 220), 1, true),
+            BorderFactory.createEmptyBorder(12, 20, 12, 20)
+        ));
+        googleBtn.setFocusPainted(false);
+        googleBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        googleBtn.setIcon(new GoogleIcon(20, 20));
+        googleBtn.setHorizontalTextPosition(SwingConstants.RIGHT);
+        googleBtn.setIconTextGap(8);
 
-    JButton forgotBtn = pillButton("Forgot password");
-    forgotBtn.setMaximumSize(new Dimension(360, 42));
-    // dark red tone
-    forgotBtn.setBackground(new Color(0x7A1414));
-    forgotBtn.setForeground(Color.WHITE);
-    forgotBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-    // removed Enter reset code button to match desired flow (email contains code and user uses dialog only)
-
-    JButton googleBtn = pillButton("Sign in with Google", new GoogleIcon(18, 18));
-    // Google button dark style: dark surface with subtle inner shadow
-    googleBtn.setBackground(new Color(0x2A2F33));
-    googleBtn.setForeground(Color.WHITE);
-    googleBtn.setBorder(BorderFactory.createCompoundBorder(
-        BorderFactory.createLineBorder(INPUT_BORDER_DARK),
-        googleBtn.getBorder()));
-    googleBtn.setMaximumSize(new Dimension(360, 42));
-    googleBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-    // assemble with spacing to match the provided design
-    loginBox.add(Box.createVerticalGlue());
+        // Assemble the login card with clean spacing matching target design
+        loginCard.add(Box.createVerticalStrut(20));
+        
+        // Add header labels
+        loginCard.add(welcomeLabel);  
+        loginCard.add(subtitleLabel);
     
-    // Title spacing
-    JLabel title = new JLabel("", SwingConstants.CENTER);
-    title.setPreferredSize(new Dimension(0, 8));
-    loginBox.add(title);
-    
-    // Input rows with consistent backgrounds
-    userRow.setBackground(INPUT_BG_DARK);
-    passRow.setBackground(INPUT_BG_DARK);
-    userRow.setAlignmentX(Component.CENTER_ALIGNMENT);
-    passRow.setAlignmentX(Component.CENTER_ALIGNMENT);
-    
-    loginBox.add(userRow);
-    loginBox.add(Box.createVerticalStrut(12));
-    loginBox.add(passRow);
-    loginBox.add(Box.createVerticalStrut(18));
-    loginBox.add(loginBtn);
-    loginBox.add(Box.createVerticalStrut(12));
-    loginBox.add(signupBtn);
-    loginBox.add(Box.createVerticalStrut(8));
-    loginBox.add(forgotBtn);
-    
-    JLabel mailHelp = new JLabel("Need help with email?", SwingConstants.CENTER);
-    mailHelp.setFont(mailHelp.getFont().deriveFont(Font.PLAIN, 11f));
-    mailHelp.setForeground(new Color(180, 180, 180));
-    mailHelp.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    mailHelp.setToolTipText("Use a Gmail App Password (create one in your Google Account under Security → App passwords).\nYou can enter it once in the prompt; optionally saved locally (plaintext).");
-    mailHelp.setAlignmentX(Component.CENTER_ALIGNMENT);
-    loginBox.add(mailHelp);
-    loginBox.add(Box.createVerticalStrut(20));
-    loginBox.add(googleBtn);
-    loginBox.add(Box.createVerticalGlue());
+        // Add input fields
+        loginCard.add(usernameOrEmail);
+        loginCard.add(Box.createVerticalStrut(16));
+        loginCard.add(password);
+        loginCard.add(Box.createVerticalStrut(24));
+        
+        // Add primary login button
+        loginCard.add(loginBtn);
+        loginCard.add(Box.createVerticalStrut(16));
+        
+        // Add secondary buttons
+        loginCard.add(signupBtn);
+        loginCard.add(Box.createVerticalStrut(16));
+        
+        // Google Sign-In section
+        loginCard.add(googleBtn);
+        loginCard.add(Box.createVerticalStrut(20));
 
-    // wrap visually with a rounded card
-    RoundedCard card = new RoundedCard(12, CARD_BG_DARK, new Color(200,200,210,110));
-    card.setLayout(new GridBagLayout());
-    card.add(loginBox);
+        // Wrapper panel for centering the login card
+        JPanel loginWrapper = new JPanel(new GridBagLayout());
+        loginWrapper.setBackground(ModernUIFramework.getTheme().background);
+        GridBagConstraints loginGbc = new GridBagConstraints();
+        loginGbc.gridx = 0;
+        loginGbc.gridy = 0;
+        loginGbc.weightx = 1.0;
+        loginGbc.weighty = 1.0;
+        loginGbc.anchor = GridBagConstraints.CENTER;
+        loginWrapper.add(loginCard, loginGbc);
     
-    JPanel wrapper = new JPanel(new GridBagLayout());
-    wrapper.setBackground(RIGHT_BG_DARK);
-    GridBagConstraints wrapperGbc = new GridBagConstraints();
-    wrapperGbc.gridx = 0;
-    wrapperGbc.gridy = 0;
-    wrapperGbc.weightx = 1.0;
-    wrapperGbc.weighty = 1.0;
-    wrapperGbc.anchor = GridBagConstraints.CENTER;
-    wrapper.add(card, wrapperGbc);
-    
-    rightPanel.add(wrapper, BorderLayout.CENTER);
+        JPanel wrapper = loginWrapper;
+        wrapper.setBackground(ModernUIFramework.getTheme().background);
+        
+        // Add wrapper to rightPanel with proper GridBagConstraints
+        GridBagConstraints rightGbc = new GridBagConstraints();
+        rightGbc.gridx = 0;
+        rightGbc.gridy = 0;
+        rightGbc.weightx = 1.0;
+        rightGbc.weighty = 1.0;
+        rightGbc.fill = GridBagConstraints.BOTH;
+        rightPanel.add(wrapper, rightGbc);
 
         frame.add(leftPanel, BorderLayout.WEST);
         frame.add(rightPanel, BorderLayout.CENTER);
@@ -635,7 +629,8 @@ public class CollegeGPATracker {
 
         // FORGOT PASSWORD: prompt for email, generate a transient token, attempt to send it by email.
         // Only persist the token after the email has successfully been sent. Never show the code in the UI.
-        forgotBtn.addActionListener(new ActionListener() {
+        // Forgot password functionality available through menu or can be re-added as button
+        /* forgotBtn.addActionListener(new ActionListener() {
             @Override public void actionPerformed(ActionEvent e) {
                 String email = JOptionPane.showInputDialog(frame, "Enter your account email:");
                 if (email == null || email.trim().isEmpty()) return;
@@ -699,7 +694,7 @@ public class CollegeGPATracker {
                     JOptionPane.showMessageDialog(frame, "Failed to send reset email. Please check the application's SMTP settings and try again later. If the problem persists, contact support.");
                 }
             }
-        });
+        }); */
 
         // Enter-reset-code UI removed — flow is: Forgot password -> email sent with code -> user uses that code in the app (we'll provide the dialog when they click Forgot again or we can add a small entry flow later)
 
@@ -799,6 +794,9 @@ public class CollegeGPATracker {
 
         // 'Enter reset code' removed — reset flow happens immediately after using 'Forgot password'
 
+        // Apply modern styling to the login frame
+        ModernThemeSystem.applyModernStyling(frame);
+        
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
@@ -809,8 +807,12 @@ public class CollegeGPATracker {
         frame.setSize(1150, 720);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
-        // add color scheme
-        frame.getContentPane().setBackground(Color.darkGray);
+        // Apply theme background
+        try {
+            frame.getContentPane().setBackground(ModernThemeSystem.getCurrentColors().background);
+        } catch (Exception e) {
+            frame.getContentPane().setBackground(Color.darkGray);
+        }
         
         // Set custom GradeRise icon
         frame.setIconImage(iconToImage(new GradeRiseIcon(32, 32)));
@@ -825,8 +827,14 @@ public class CollegeGPATracker {
     userMenu.add(signOutGoogle);
 
         JMenu viewMenu = new JMenu("View");
-        JMenuItem toggleDark = new JMenuItem("Toggle Dark Mode");
-        viewMenu.add(toggleDark);
+        JMenuItem themeSettings = new JMenuItem("🎨 Theme Settings");
+        JMenuItem darkMode = new JMenuItem("🌙 Dark Mode");
+        JMenuItem lightMode = new JMenuItem("☀️ Light Mode");
+        
+        viewMenu.add(themeSettings);
+        viewMenu.addSeparator();
+        viewMenu.add(lightMode);
+        viewMenu.add(darkMode);
 
         menuBar.add(userMenu);
         menuBar.add(viewMenu);
@@ -905,13 +913,16 @@ public class CollegeGPATracker {
 
         profile.addActionListener(_ -> showUserPanel(frame));
 
-        toggleDark.addActionListener(_ -> {
-            darkMode = !darkMode;
-            applyTheme(frame.getContentPane());
-            SwingUtilities.updateComponentTreeUI(frame);
-        });
+        // Modern theme menu action listeners
+        themeSettings.addActionListener(_ -> ModernThemeSystem.showThemeDialog(frame));
+        
+        darkMode.addActionListener(_ -> ModernThemeSystem.setTheme(ModernThemeSystem.Theme.DARK));
+        
+        lightMode.addActionListener(_ -> ModernThemeSystem.setTheme(ModernThemeSystem.Theme.LIGHT));
 
-        applyTheme(frame.getContentPane());
+        // Apply modern styling to the entire frame
+        ModernThemeSystem.applyModernStyling(frame);
+        
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
@@ -925,10 +936,12 @@ public class CollegeGPATracker {
                 Graphics2D g2d = (Graphics2D) g;
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
-                // Create gradient background
+                // Create gradient background using current theme primary
+                Color primary = ModernThemeSystem.getCurrentColors().primary;
+                Color start = darken(primary, 0.25f);
                 GradientPaint gradient = new GradientPaint(
-                    0, 0, GRADIENT_START,
-                    getWidth(), 0, GRADIENT_END
+                    0, 0, start,
+                    getWidth(), 0, primary
                 );
                 g2d.setPaint(gradient);
                 g2d.fillRect(0, 0, getWidth(), getHeight());
@@ -991,12 +1004,14 @@ public class CollegeGPATracker {
                 if (selectedIndex >= 0) {
                     Rectangle tabBounds = getBoundsAt(selectedIndex);
                     if (tabBounds != null) {
-                        // Gradient underline for active tab
+                        // Gradient underline for active tab using current theme primary
+                        Color primary = ModernThemeSystem.getCurrentColors().primary;
+                        Color start = darken(primary, 0.25f);
                         GradientPaint gradient = new GradientPaint(
                             tabBounds.x, tabBounds.y + tabBounds.height - 3,
-                            GRADIENT_START,
+                            start,
                             tabBounds.x + tabBounds.width, tabBounds.y + tabBounds.height - 3,
-                            GRADIENT_END
+                            primary
                         );
                         g2d.setPaint(gradient);
                         g2d.fillRoundRect(tabBounds.x + 10, tabBounds.y + tabBounds.height - 3, 
@@ -1007,7 +1022,11 @@ public class CollegeGPATracker {
         };
         
         tabbedPane.setFont(new Font("SansSerif", Font.BOLD, 14));
-        tabbedPane.setBackground(RIGHT_BG);
+        try {
+            tabbedPane.setBackground(ModernThemeSystem.getCurrentColors().background);
+        } catch (Exception e) {
+            tabbedPane.setBackground(RIGHT_BG);
+        }
         tabbedPane.setBorder(new EmptyBorder(10, 25, 15, 25));
         tabbedPane.setTabPlacement(JTabbedPane.TOP);
         
@@ -1246,6 +1265,19 @@ public class CollegeGPATracker {
         JButton letterGradeBtn = createGradeRiseButton("🎓 Letter Grade", new Color(0x9333EA), false);
         letterGradeBtn.setToolTipText("Set letter grade for past classes (A, B, C, D, F)");
         
+        // Enhanced Grade Management Features
+        JButton analyticsBtn = createGradeRiseButton("📊 Analytics", new Color(0x3B82F6), true);
+        JButton chartBtn = createGradeRiseButton("📈 Charts", new Color(0x8B5CF6), true);
+        JButton whatIfBtn = createGradeRiseButton("🎯 What-If", new Color(0x06B6D4), true);
+        JButton exportBtn = createGradeRiseButton("📋 Export", new Color(0x10B981), true);
+        JButton dashboardBtn = createGradeRiseButton("📈 Dashboard", new Color(0xF59E0B), true);
+        
+        analyticsBtn.setToolTipText("View grade predictions, trends, and statistics");
+        chartBtn.setToolTipText("Visualize grade trends and performance charts");
+        whatIfBtn.setToolTipText("Plan scenarios and predict grade outcomes");
+        exportBtn.setToolTipText("Export reports to PDF, Excel, or other formats");
+        dashboardBtn.setToolTipText("Open interactive data visualization dashboard");
+        
         // Modern class status controls
         JToggleButton showActiveBtn = new JToggleButton("✅ Active", true);
         JToggleButton showPastBtn = new JToggleButton("📚 Archived", false);
@@ -1280,6 +1312,14 @@ public class CollegeGPATracker {
         rightControls.add(creditsBtn);
         rightControls.add(weightsBtn);
         rightControls.add(letterGradeBtn);
+        
+        // Add enhanced grade management buttons
+        rightControls.add(analyticsBtn);
+        rightControls.add(chartBtn);
+        rightControls.add(whatIfBtn);
+        rightControls.add(exportBtn);
+        rightControls.add(dashboardBtn);
+        
         centerTop.add(classTitle, BorderLayout.CENTER);
         centerTop.add(rightControls, BorderLayout.EAST);
 
@@ -1640,6 +1680,53 @@ public class CollegeGPATracker {
             }
         });
 
+        // Enhanced Grade Management Features Action Listeners
+        
+        // Analytics Button - Show grade predictions and statistics
+        analyticsBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null || selectedClass.isEmpty()) {
+                JOptionPane.showMessageDialog(root, "Please select a class first.", "No Class Selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            showGradeAnalytics(selectedClass, semesterName);
+        });
+        
+        // Charts Button - Display visual analytics
+        chartBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null || selectedClass.isEmpty()) {
+                JOptionPane.showMessageDialog(root, "Please select a class first.", "No Class Selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            showGradeCharts(selectedClass, semesterName);
+        });
+        
+        // What-If Button - Scenario planning
+        whatIfBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null || selectedClass.isEmpty()) {
+                JOptionPane.showMessageDialog(root, "Please select a class first.", "No Class Selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            showWhatIfScenarios(selectedClass, semesterName);
+        });
+        
+        // Export Button - Report generation
+        exportBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null || selectedClass.isEmpty()) {
+                JOptionPane.showMessageDialog(root, "Please select a class first.", "No Class Selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            exportGradeReport(selectedClass, semesterName);
+        });
+        
+        // Dashboard Button - Interactive visualization dashboard
+        dashboardBtn.addActionListener(_ -> {
+            openVisualizationDashboard();
+        });
+
         return root;
     }
 
@@ -1970,37 +2057,16 @@ public class CollegeGPATracker {
         return new Color(r, g, bl, alpha);
     }
 
-    // create a square ImageIcon sized to `size` pixels (keeps aspect and centers the source icon)
-    private static Icon sizedIcon(Icon ic, int size) {
-        if (ic == null) return null;
-        int iw = ic.getIconWidth();
-        int ih = ic.getIconHeight();
-        if (iw == size && ih == size) return ic;
-        java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = out.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        double scale = Math.min((double)size / Math.max(1, iw), (double)size / Math.max(1, ih));
-        int dw = (int) Math.round(iw * scale);
-        int dh = (int) Math.round(ih * scale);
-        int dx = (size - dw) / 2;
-        int dy = (size - dh) / 2;
-        // render source icon into a temp image if it's not an ImageIcon
-        if (ic instanceof ImageIcon) {
-            Image img = ((ImageIcon) ic).getImage().getScaledInstance(dw, dh, Image.SCALE_SMOOTH);
-            g2.drawImage(img, dx, dy, null);
-        } else {
-            java.awt.image.BufferedImage tmp = new java.awt.image.BufferedImage(iw, ih, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-            Graphics2D t = tmp.createGraphics();
-            t.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            ic.paintIcon(null, t, 0, 0);
-            t.dispose();
-            Image scaled = tmp.getScaledInstance(dw, dh, Image.SCALE_SMOOTH);
-            g2.drawImage(scaled, dx, dy, null);
-        }
-        g2.dispose();
-        return new ImageIcon(out);
+    // Darken a color by factor (0..1)
+    private static Color darken(Color color, float factor) {
+        factor = Math.max(0f, Math.min(1f, factor));
+        int r = Math.max(0, (int) (color.getRed() * (1 - factor)));
+        int g = Math.max(0, (int) (color.getGreen() * (1 - factor)));
+        int b = Math.max(0, (int) (color.getBlue() * (1 - factor)));
+        return new Color(r, g, b, color.getAlpha());
     }
+
+    // Removed unused sizedIcon method - not needed with ModernUIFramework
 
     // Helper method to create BufferedImage from Icon for window icons
     private static BufferedImage iconToImage(Icon icon) {
@@ -2012,15 +2078,7 @@ public class CollegeGPATracker {
         return img;
     }
 
-    private static void applyTheme(java.awt.Container root) {
-        if (darkMode) {
-            root.setBackground(RIGHT_BG_DARK);
-            if (overallGpaLabel != null) overallGpaLabel.setForeground(Color.WHITE);
-        } else {
-            root.setBackground(RIGHT_BG);
-            if (overallGpaLabel != null) overallGpaLabel.setForeground(Color.BLACK);
-        }
-    }
+
 
     private static void updateOverallGpaLabel() {
         if (overallGpaLabel != null && currentUser != null) {
@@ -2616,12 +2674,14 @@ public class CollegeGPATracker {
             super.paintComponent(g);
             if (!isFocusOwner() && getText().isEmpty() && placeholder != null) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(new Color(120,120,120));
-                g2.setFont(getFont().deriveFont(Font.PLAIN, 13f));
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                // Light gray placeholder color for clean modern look
+                g2.setColor(new Color(160, 160, 160));
+                g2.setFont(getFont());
                 FontMetrics fm = g2.getFontMetrics();
-                int textWidth = fm.stringWidth(placeholder);
-                int x = Math.max(4, (getWidth() - textWidth) / 2);
-                int y = getHeight() / 2 + fm.getAscent() / 2 - 2;
+                Insets insets = getInsets();
+                int x = insets.left;
+                int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
                 g2.drawString(placeholder, x, y);
                 g2.dispose();
             }
@@ -2635,12 +2695,14 @@ public class CollegeGPATracker {
             super.paintComponent(g);
             if (!isFocusOwner() && getPassword().length == 0 && placeholder != null) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setColor(new Color(120,120,120));
-                g2.setFont(getFont().deriveFont(Font.PLAIN, 13f));
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                // Light gray placeholder color for clean modern look
+                g2.setColor(new Color(160, 160, 160));
+                g2.setFont(getFont());
                 FontMetrics fm = g2.getFontMetrics();
-                int textWidth = fm.stringWidth(placeholder);
-                int x = Math.max(4, (getWidth() - textWidth) / 2);
-                int y = getHeight() / 2 + fm.getAscent() / 2 - 2;
+                Insets insets = getInsets();
+                int x = insets.left;
+                int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
                 g2.drawString(placeholder, x, y);
                 g2.dispose();
             }
@@ -2757,6 +2819,512 @@ public class CollegeGPATracker {
         File f = new File(SESSION_FILE);
         if (f.exists()) {
             f.delete();
+        }
+    }
+    
+    // ===== Enhanced Grade Management Methods =====
+    
+    /**
+     * Show Grade Analytics Dialog with predictions and statistics
+     */
+    private static void showGradeAnalytics(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null || course.getAssignments().isEmpty()) {
+            JOptionPane.showMessageDialog(null, 
+                "No assignment data available for analytics.", 
+                "Insufficient Data", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        // Create analytics dialog
+        JDialog dialog = new JDialog((JFrame) null, "📊 Grade Analytics - " + className, true);
+        dialog.setSize(800, 600);
+        dialog.setLocationRelativeTo(null);
+        
+        JTabbedPane tabbedPane = new JTabbedPane();
+        
+        // Predictions Tab
+        tabbedPane.addTab("🔮 Predictions", createPredictionsPanel(course));
+        
+        // Statistics Tab
+        tabbedPane.addTab("📈 Statistics", createStatisticsPanel(course));
+        
+        // Trends Tab
+        tabbedPane.addTab("📊 Trends", createTrendsPanel(course));
+        
+        dialog.add(tabbedPane);
+        dialog.setVisible(true);
+    }
+    
+    /**
+     * Show Grade Charts Dialog with visual analytics
+     */
+    private static void showGradeCharts(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null || course.getAssignments().isEmpty()) {
+            JOptionPane.showMessageDialog(null, 
+                "No assignment data available for charts.", 
+                "Insufficient Data", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        JDialog dialog = new JDialog((JFrame) null, "📈 Grade Charts - " + className, true);
+        dialog.setSize(900, 700);
+        dialog.setLocationRelativeTo(null);
+        
+        JTabbedPane tabbedPane = new JTabbedPane();
+        
+        // Grade Trend Chart
+        tabbedPane.addTab("📈 Trend", GradeChartGenerator.createGradeTrendChart(course));
+        
+        // Grade Distribution
+        tabbedPane.addTab("📊 Distribution", GradeChartGenerator.createGradeDistributionChart(course));
+        
+        // Category Performance
+        tabbedPane.addTab("📋 Categories", GradeChartGenerator.createCategoryPerformanceChart(course));
+        
+        // Box Plot
+        tabbedPane.addTab("📦 Statistics", GradeChartGenerator.createGradeBoxPlot(course));
+        
+        dialog.add(tabbedPane);
+        dialog.setVisible(true);
+    }
+    
+    /**
+     * Show What-If Scenarios Dialog for grade planning
+     */
+    private static void showWhatIfScenarios(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null || course.getAssignments().isEmpty()) {
+            JOptionPane.showMessageDialog(null, 
+                "No assignment data available for scenarios.", 
+                "Insufficient Data", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        JDialog dialog = new JDialog((JFrame) null, "🎯 What-If Scenarios - " + className, true);
+        dialog.setSize(800, 600);
+        dialog.setLocationRelativeTo(null);
+        
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        
+        // Scenario Selection Panel
+        JPanel topPanel = new JPanel(new FlowLayout());
+        topPanel.setBorder(BorderFactory.createTitledBorder("Select Scenario Type"));
+        
+        JComboBox<String> scenarioCombo = new JComboBox<>(new String[]{
+            "Grade Goal Planning",
+            "Final Exam Impact",
+            "Assignment Skip Analysis",
+            "Improvement Planning"
+        });
+        
+        JButton runScenarioBtn = createGradeRiseButton("🚀 Run Scenario", SUCCESS_EMERALD, true);
+        
+        topPanel.add(new JLabel("Scenario: "));
+        topPanel.add(scenarioCombo);
+        topPanel.add(runScenarioBtn);
+        
+        // Results Panel
+        JTextArea resultsArea = new JTextArea(20, 60);
+        resultsArea.setEditable(false);
+        resultsArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        JScrollPane scrollPane = new JScrollPane(resultsArea);
+        scrollPane.setBorder(BorderFactory.createTitledBorder("Scenario Results"));
+        
+        mainPanel.add(topPanel, BorderLayout.NORTH);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Action listener for scenario execution
+        runScenarioBtn.addActionListener(_ -> {
+            String selectedScenario = (String) scenarioCombo.getSelectedItem();
+            WhatIfScenarioManager.ScenarioResult result = null;
+            
+            try {
+                switch (selectedScenario) {
+                    case "Grade Goal Planning":
+                        String targetStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter your target grade (e.g., 90):", "Target Grade", JOptionPane.QUESTION_MESSAGE);
+                        if (targetStr != null) {
+                            double target = Double.parseDouble(targetStr);
+                            result = WhatIfScenarioManager.calculateGradeGoalScenario(course, target);
+                        }
+                        break;
+                        
+                    case "Final Exam Impact":
+                        String weightStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter final exam weight (e.g., 0.3 for 30%):", "Final Weight", JOptionPane.QUESTION_MESSAGE);
+                        if (weightStr != null) {
+                            double weight = Double.parseDouble(weightStr);
+                            result = WhatIfScenarioManager.calculateFinalExamImpactScenario(course, weight, 100, 90, 80, 70, 60);
+                        }
+                        break;
+                        
+                    case "Assignment Skip Analysis":
+                        String skipWeightStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter assignment weight (e.g., 0.05 for 5%):", "Assignment Weight", JOptionPane.QUESTION_MESSAGE);
+                        if (skipWeightStr != null) {
+                            double skipWeight = Double.parseDouble(skipWeightStr);
+                            result = WhatIfScenarioManager.calculateAssignmentSkipScenario(course, skipWeight);
+                        }
+                        break;
+                        
+                    case "Improvement Planning":
+                        String improvementStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter desired improvement (points, e.g., 5):", "Improvement Goal", JOptionPane.QUESTION_MESSAGE);
+                        if (improvementStr != null) {
+                            double improvement = Double.parseDouble(improvementStr);
+                            result = WhatIfScenarioManager.calculateImprovementPlanScenario(course, improvement);
+                        }
+                        break;
+                }
+                
+                if (result != null) {
+                    displayScenarioResult(result, resultsArea);
+                }
+                
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(dialog, "Please enter a valid number.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        dialog.add(mainPanel);
+        dialog.setVisible(true);
+    }
+    
+    /**
+     * Show Export Dialog for generating reports
+     */
+    private static void exportGradeReport(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null) {
+            JOptionPane.showMessageDialog(null, "No data available for export.", "Export Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        // Format selection dialog
+        String[] formats = {"PDF Document", "HTML Report", "CSV Data", "Excel Spreadsheet"};
+        String selectedFormat = (String) JOptionPane.showInputDialog(null,
+            "Select export format:", "Export Grade Report",
+            JOptionPane.QUESTION_MESSAGE, null, formats, formats[0]);
+        
+        if (selectedFormat == null) return;
+        
+        GradeExporter.ExportFormat format;
+        switch (selectedFormat) {
+            case "PDF Document": format = GradeExporter.ExportFormat.PDF; break;
+            case "HTML Report": format = GradeExporter.ExportFormat.HTML; break;
+            case "CSV Data": format = GradeExporter.ExportFormat.CSV; break;
+            case "Excel Spreadsheet": format = GradeExporter.ExportFormat.EXCEL; break;
+            default: return;
+        }
+        
+        // Show file chooser
+        File exportFile = GradeExporter.showExportFileChooser(null, format);
+        if (exportFile == null) return;
+        
+        // Create export configuration
+        GradeExporter.ExportConfig config = new GradeExporter.ExportConfig(
+            format, GradeExporter.ReportType.COURSE_SUMMARY, exportFile.getAbsolutePath());
+        
+        // Show progress dialog
+        JDialog progressDialog = GradeExporter.createExportProgressDialog(null);
+        
+        // Export in background thread
+        SwingUtilities.invokeLater(() -> {
+            progressDialog.setVisible(true);
+            
+            new Thread(() -> {
+                GradeExporter.ExportResult result = GradeExporter.exportGrades(config, course);
+                
+                SwingUtilities.invokeLater(() -> {
+                    progressDialog.dispose();
+                    
+                    if (result.isSuccess()) {
+                        JOptionPane.showMessageDialog(null,
+                            String.format("Report exported successfully!\\n\\nFile: %s\\nSize: %s",
+                                result.getFilePath(), result.getFormattedFileSize()),
+                            "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(null,
+                            "Export failed: " + result.getMessage(),
+                            "Export Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            }).start();
+        });
+    }
+    
+    // Helper Methods for Enhanced Features
+    
+    /**
+     * Convert ClassData to Course object for analytics
+     */
+    private static Course convertToCourse(String className, String semesterName) {
+        Map<String, ClassData> semesterData = userData.get(currentUser).get(semesterName);
+        if (semesterData == null) return null;
+        
+        ClassData classData = semesterData.get(className);
+        if (classData == null) return null;
+        
+        Course course = new Course(className, classData.credits);
+        
+        // Convert assignments - note: using the internal Assignment class from CollegeGPATracker
+        // and converting to the enhanced Assignment class
+        for (Map.Entry<String, List<Assignment>> entry : classData.assignments.entrySet()) {
+            String category = entry.getKey();
+            for (Assignment internalAssignment : entry.getValue()) {
+                // Convert internal assignment percentage to score out of 100
+                double score = internalAssignment.score; // This is already a percentage
+                
+                // Create external Assignment object for enhanced grade management
+                // Directly call addAssignment with constructor to avoid name collision
+                createAndAddAssignment(course, internalAssignment.name, score, category);
+            }
+        }
+        
+        return course;
+    }
+    
+    /**
+     * Helper method to create external Assignment and add to course
+     * (avoids name collision with internal Assignment class)
+     */
+    private static void createAndAddAssignment(Course course, String name, double score, String category) {
+        // Use reflection to create the external Assignment to avoid name collision
+        try {
+            Class<?> externalAssignmentClass = Class.forName("Assignment");
+            java.lang.reflect.Constructor<?> constructor = externalAssignmentClass.getConstructor(String.class, double.class, String.class);
+            Object externalAssignment = constructor.newInstance(name, score, category);
+            
+            // Call addAssignment method using reflection
+            java.lang.reflect.Method addMethod = Course.class.getMethod("addAssignment", externalAssignmentClass);
+            addMethod.invoke(course, externalAssignment);
+        } catch (Exception e) {
+            System.err.println("Error creating external Assignment: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Create Predictions Panel for Analytics
+     */
+    private static JPanel createPredictionsPanel(Course course) {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        JTextArea textArea = new JTextArea(20, 60);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        
+        StringBuilder content = new StringBuilder();
+        content.append("🔮 GRADE PREDICTIONS FOR ").append(course.getName().toUpperCase()).append("\\n");
+        content.append("=".repeat(60)).append("\\n\\n");
+        
+        // Generate predictions using different models
+        GradeAnalyticsEngine.PredictionModel[] models = {
+            GradeAnalyticsEngine.PredictionModel.WEIGHTED_AVERAGE,
+            GradeAnalyticsEngine.PredictionModel.LINEAR_REGRESSION,
+            GradeAnalyticsEngine.PredictionModel.MOMENTUM_BASED,
+            GradeAnalyticsEngine.PredictionModel.DIFFICULTY_ADJUSTED
+        };
+        
+        for (GradeAnalyticsEngine.PredictionModel model : models) {
+            GradeAnalyticsEngine.GradePrediction prediction = 
+                GradeAnalyticsEngine.predictFinalGrade(course, model);
+            
+            content.append(String.format("📊 %s MODEL:\\n", model.toString().replace("_", " ")));
+            content.append(String.format("   Likely Grade: %.2f%%\\n", prediction.getLikelyGrade()));
+            content.append(String.format("   Conservative: %.2f%%\\n", prediction.getConservativeGrade()));
+            content.append(String.format("   Optimistic: %.2f%%\\n", prediction.getOptimisticGrade()));
+            content.append(String.format("   Confidence: %.1f%%\\n", prediction.getConfidenceScore() * 100));
+            content.append(String.format("   Trend: %s\\n\\n", prediction.getTrendDescription()));
+        }
+        
+        textArea.setText(content.toString());
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    /**
+     * Create Statistics Panel for Analytics
+     */
+    private static JPanel createStatisticsPanel(Course course) {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        JTextArea textArea = new JTextArea(20, 60);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        
+        GradeAnalyticsEngine.GradeStatistics stats = 
+            GradeAnalyticsEngine.calculateStatistics(course.getAllAssignments());
+        
+        StringBuilder content = new StringBuilder();
+        content.append("📈 GRADE STATISTICS FOR ").append(course.getName().toUpperCase()).append("\\n");
+        content.append("=".repeat(60)).append("\\n\\n");
+        
+        content.append(String.format("📊 DESCRIPTIVE STATISTICS:\\n"));
+        content.append(String.format("   Mean (Average): %.2f%%\\n", stats.getMean()));
+        content.append(String.format("   Median: %.2f%%\\n", stats.getMedian()));
+        content.append(String.format("   Mode: %.2f%%\\n", stats.getMode()));
+        content.append(String.format("   Standard Deviation: %.2f\\n", stats.getStandardDeviation()));
+        content.append(String.format("   Variance: %.2f\\n", stats.getVariance()));
+        content.append(String.format("   Range: %.2f%%\\n\\n", stats.getRange()));
+        
+        content.append(String.format("📦 QUARTILE ANALYSIS:\\n"));
+        content.append(String.format("   First Quartile (Q1): %.2f%%\\n", stats.getQuartile1()));
+        content.append(String.format("   Third Quartile (Q3): %.2f%%\\n", stats.getQuartile3()));
+        content.append(String.format("   Interquartile Range: %.2f%%\\n\\n", stats.getQuartile3() - stats.getQuartile1()));
+        
+        content.append(String.format("📋 SUMMARY:\\n"));
+        content.append(String.format("   Total Assignments: %d\\n", stats.getTotalAssignments()));
+        
+        GradeAnalyticsEngine.TrendType trend = GradeAnalyticsEngine.analyzeTrend(course.getAllAssignments());
+        content.append(String.format("   Performance Trend: %s\\n", trend.toString()));
+        
+        textArea.setText(content.toString());
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    /**
+     * Create Trends Panel for Analytics
+     */
+    private static JPanel createTrendsPanel(Course course) {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        // Add the trend chart
+        GradeChartGenerator.ModernChartPanel chartPanel = 
+            GradeChartGenerator.createGradeTrendChart(course);
+        
+        panel.add(chartPanel, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    /**
+     * Display scenario result in text area
+     */
+    private static void displayScenarioResult(WhatIfScenarioManager.ScenarioResult result, JTextArea textArea) {
+        StringBuilder content = new StringBuilder();
+        
+        content.append("🎯 ").append(result.getScenarioName().toUpperCase()).append("\\n");
+        content.append("=".repeat(60)).append("\\n\\n");
+        
+        content.append(String.format("📊 SCENARIO SUMMARY:\\n"));
+        content.append(String.format("   Achievable: %s\\n", result.isAchievable() ? "✅ Yes" : "❌ No"));
+        content.append(String.format("   Current Grade: %.2f%%\\n", result.getCurrentGrade()));
+        content.append(String.format("   Projected Grade: %.2f%%\\n", result.getProjectedGrade()));
+        content.append(String.format("   Required Grade: %.2f%%\\n", result.getRequiredGrade()));
+        content.append(String.format("   Difficulty: %s (%.1f/10)\\n\\n", 
+            result.getDifficultyLevel(), result.getDifficultyScore()));
+        
+        content.append("💡 RECOMMENDATIONS:\\n");
+        for (String recommendation : result.getRecommendations()) {
+            content.append("   • ").append(recommendation).append("\\n");
+        }
+        
+        content.append("\\n📋 ACTION PLANS:\\n");
+        for (WhatIfScenarioManager.ActionPlan plan : result.getActionPlans()) {
+            content.append(String.format("   %s %s\\n", plan.getPriorityLabel(), plan.getTitle()));
+            content.append(String.format("      Impact: +%.1f points | Time: %d hours\\n", 
+                plan.getExpectedImpact(), plan.getEstimatedHours()));
+            content.append(String.format("      %s\\n", plan.getDescription()));
+            for (String step : plan.getSteps()) {
+                content.append(String.format("      → %s\\n", step));
+            }
+            content.append("\\n");
+        }
+        
+        if (!result.getImpactAnalysis().isEmpty()) {
+            content.append("📈 IMPACT ANALYSIS:\\n");
+            for (Map.Entry<String, Double> entry : result.getImpactAnalysis().entrySet()) {
+                content.append(String.format("   %s: %.2f\\n", entry.getKey(), entry.getValue()));
+            }
+        }
+        
+        textArea.setText(content.toString());
+        textArea.setCaretPosition(0);
+    }
+    
+    /**
+     * Open Interactive Data Visualization Dashboard
+     */
+    private static void openVisualizationDashboard() {
+        try {
+            // Convert current user data to User object for dashboard
+            User dashboardUser = convertToUserObject();
+            
+            if (dashboardUser == null || dashboardUser.getAllSemesters().isEmpty()) {
+                JOptionPane.showMessageDialog(null,
+                    "No semester data available for visualization.\n" +
+                    "Please add some courses and assignments first.",
+                    "Insufficient Data",
+                    JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            
+            // Launch the visualization dashboard
+            VisualizationDashboard.showVisualizationDashboard(dashboardUser, null);
+            
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null,
+                "Error opening visualization dashboard: " + e.getMessage(),
+                "Dashboard Error",
+                JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Convert current user data to User object for visualization
+     */
+    private static User convertToUserObject() {
+        try {
+            User user = new User();
+            
+            // Get all semester data for current user
+            Map<String, Map<String, ClassData>> allUserData = userData.get(currentUser);
+            if (allUserData == null) return null;
+            
+            // Convert each semester
+            for (Map.Entry<String, Map<String, ClassData>> semesterEntry : allUserData.entrySet()) {
+                String semesterName = semesterEntry.getKey();
+                Map<String, ClassData> semesterData = semesterEntry.getValue();
+                
+                Semester semester = new Semester(semesterName);
+                
+                // Convert each course in the semester
+                for (Map.Entry<String, ClassData> courseEntry : semesterData.entrySet()) {
+                    String courseName = courseEntry.getKey();
+                    ClassData classData = courseEntry.getValue();
+                    
+                    Course course = new Course(courseName, classData.credits);
+                    
+                    // Convert assignments
+                    for (Map.Entry<String, List<Assignment>> assignmentEntry : classData.assignments.entrySet()) {
+                        String category = assignmentEntry.getKey();
+                        for (Assignment internalAssignment : assignmentEntry.getValue()) {
+                            // Create external Assignment and add to course
+                            createAndAddAssignment(course, internalAssignment.name, 
+                                                 internalAssignment.score, category);
+                        }
+                    }
+                    
+                    semester.addCourse(course);
+                }
+                
+                user.addSemester(semester);
+            }
+            
+            return user;
+            
+        } catch (Exception e) {
+            System.err.println("Error converting user data: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         }
     }
 }
