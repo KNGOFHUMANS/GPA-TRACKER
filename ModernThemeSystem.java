@@ -17,9 +17,7 @@ public class ModernThemeSystem {
     
     // Theme Types
     public enum Theme {
-        LIGHT("Light", "☀️"),
-        DARK("Dark", "🌙"),
-        AUTO("Auto", "🔄");
+        LIGHT("Light", "☀️");
         
         private final String displayName;
         private final String icon;
@@ -39,7 +37,6 @@ public class ModernThemeSystem {
     public enum ColorScheme {
         LAVENDER_RED("Lavender & Red", new Color(0xD4446E)),
         CREAM_AMBER("Cream & Amber", new Color(0xD18529)),
-        CRIMSON_NOIR("Crimson Noir", new Color(0x4A0C0C)),
         TEAL_PINK("Teal & Pink", new Color(0x007C7C)),
         GRADERISE("GradeRise Classic", new Color(139, 21, 56)),
         OCEAN("Ocean Blue", new Color(34, 139, 204));
@@ -84,9 +81,6 @@ public class ModernThemeSystem {
                 case CREAM_AMBER:
                     initializeCreamAmber();
                     break;
-                case CRIMSON_NOIR:
-                    initializeCrimsonNoir();
-                    break;
                 case TEAL_PINK:
                     initializeTealPink();
                     break;
@@ -123,17 +117,7 @@ public class ModernThemeSystem {
             border = new Color(0xE0C896);         // Light cream border
         }
         
-        private void initializeCrimsonNoir() {
-            background = new Color(0x0E0E0E);     // Near-black background for true noir
-            surface = new Color(0x1C0D0D);        // Deep wine brown for cards/panels
-            surfaceVariant = new Color(0x2A1515); // Rich burgundy for inputs
-            primary = new Color(0x4A0C0C);        // Dark crimson header/buttons
-            secondary = new Color(0xA02828);      // Crimson for secondary actions
-            accent = new Color(0xD42068);         // Magenta-red accent
-            text = new Color(0xEDEDED);           // Softer white for reduced glare
-            textSecondary = new Color(0xCFAAAA);  // Warm light taupe for placeholders
-            border = new Color(0x555555);         // Subtle but visible border
-        }
+
         
         private void initializeTealPink() {
             background = new Color(0xF0FFFE);     // Soft Mint background
@@ -148,42 +132,26 @@ public class ModernThemeSystem {
         }
         
         private void initializeGradeRise(Theme themeType) {
-            if (themeType == Theme.DARK) {
-                background = new Color(18, 18, 18);
-                surface = new Color(28, 28, 28);
-                surfaceVariant = new Color(38, 38, 38);
-                text = new Color(245, 245, 245);
-                textSecondary = new Color(160, 160, 160);
-                border = new Color(68, 68, 68);
-            } else {
-                background = new Color(248, 249, 250);
-                surface = Color.WHITE;
-                surfaceVariant = new Color(241, 243, 244);
-                text = new Color(33, 37, 41);
-                textSecondary = new Color(108, 117, 125);
-                border = new Color(222, 226, 230);
-            }
+            // Always use light theme colors
+            background = new Color(248, 249, 250);
+            surface = Color.WHITE;
+            surfaceVariant = new Color(241, 243, 244);
+            text = new Color(33, 37, 41);
+            textSecondary = new Color(108, 117, 125);
+            border = new Color(222, 226, 230);
             primary = new Color(139, 21, 56);
             secondary = new Color(108, 117, 125);
             accent = new Color(139, 21, 56);
         }
         
         private void initializeOcean(Theme themeType) {
-            if (themeType == Theme.DARK) {
-                background = new Color(18, 18, 18);
-                surface = new Color(28, 28, 28);
-                surfaceVariant = new Color(38, 38, 38);
-                text = new Color(245, 245, 245);
-                textSecondary = new Color(160, 160, 160);
-                border = new Color(68, 68, 68);
-            } else {
-                background = new Color(248, 249, 250);
-                surface = Color.WHITE;
-                surfaceVariant = new Color(241, 243, 244);
-                text = new Color(33, 37, 41);
-                textSecondary = new Color(108, 117, 125);
-                border = new Color(222, 226, 230);
-            }
+            // Always use light theme colors
+            background = new Color(248, 249, 250);
+            surface = Color.WHITE;
+            surfaceVariant = new Color(241, 243, 244);
+            text = new Color(33, 37, 41);
+            textSecondary = new Color(108, 117, 125);
+            border = new Color(222, 226, 230);
             primary = new Color(34, 139, 204);
             secondary = new Color(108, 117, 125);
             accent = new Color(34, 139, 204);

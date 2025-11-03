@@ -202,3 +202,20 @@ Classpath: GradeRise-Complete.jar
 ✓ Modern theme system initialized
 ✓ Launching login UI
 ✓ Application startup completed successfully
+=== GradeRise Startup Debug Log ===
+Timestamp: Mon Nov 03 14:11:45 EST 2025
+Java Version: 25
+Working Directory: C:\Users\malik\OneDrive\Desktop\GPAManagerApp
+Classpath: GradeRise-Complete.jar
+✓ System Look and Feel set successfully
+✓ System properties set
+✓ Gson library test successful
+✓ Data directory ensured
+✓ Database initialized
+✓ Data migration completed
+✓ Users loaded
+✓ User data loaded
+✓ Password reset store initialized
+✓ Modern theme system initialized
+✓ Launching login UI
+✓ Application startup completed successfully

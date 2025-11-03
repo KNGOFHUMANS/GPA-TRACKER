@@ -467,6 +467,16 @@ public class CollegeGPATracker {
         loginCard.add(usernameOrEmail);
         loginCard.add(Box.createVerticalStrut(16));
         loginCard.add(password);
+        
+        // Forgot password link
+        JLabel forgotPasswordLink = new JLabel("<html><u>Forgot password?</u></html>", SwingConstants.CENTER);
+        forgotPasswordLink.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        forgotPasswordLink.setForeground(new Color(193, 80, 122)); // Rose color to match primary
+        forgotPasswordLink.setAlignmentX(Component.CENTER_ALIGNMENT);
+        forgotPasswordLink.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        forgotPasswordLink.setBorder(new EmptyBorder(12, 0, 0, 0));
+        
+        loginCard.add(forgotPasswordLink);
         loginCard.add(Box.createVerticalStrut(24));
         
         // Add primary login button
@@ -475,6 +485,14 @@ public class CollegeGPATracker {
         
         // Add secondary buttons
         loginCard.add(signupBtn);
+        loginCard.add(Box.createVerticalStrut(16));
+        
+        // OR section
+        JLabel orLabel = new JLabel("OR", SwingConstants.CENTER);
+        orLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        orLabel.setForeground(new Color(120, 120, 120));
+        orLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        loginCard.add(orLabel);
         loginCard.add(Box.createVerticalStrut(16));
         
         // Google Sign-In section
@@ -629,9 +647,9 @@ public class CollegeGPATracker {
 
         // FORGOT PASSWORD: prompt for email, generate a transient token, attempt to send it by email.
         // Only persist the token after the email has successfully been sent. Never show the code in the UI.
-        // Forgot password functionality available through menu or can be re-added as button
-        /* forgotBtn.addActionListener(new ActionListener() {
-            @Override public void actionPerformed(ActionEvent e) {
+        forgotPasswordLink.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
                 String email = JOptionPane.showInputDialog(frame, "Enter your account email:");
                 if (email == null || email.trim().isEmpty()) return;
                 String user = findUserByEmail(email);
@@ -642,7 +660,7 @@ public class CollegeGPATracker {
 
                 // generate a token but don't persist it until we confirm email delivery
                 String code = PasswordResetStore.generateTokenFor(user);
-                String subject = "GPA Tracker — Password reset code";
+                String subject = "GradeRise — Password reset code";
                 String body = "Your password reset code: " + code + "\n\n" +
                         "Enter this code in the app to set a new password.\nIf you did not request this, ignore this message.";
 
@@ -668,7 +686,7 @@ public class CollegeGPATracker {
                     // Immediately prompt user to enter the code they received by email
                     String provided = JOptionPane.showInputDialog(frame, "Enter the 6-digit reset code from your email:");
                     if (provided == null || provided.trim().isEmpty()) {
-                        JOptionPane.showMessageDialog(frame, "No code entered. You can enter the code later using 'Enter reset code'.");
+                        JOptionPane.showMessageDialog(frame, "No code entered. You can enter the code later.");
                         return;
                     }
                     String matched = PasswordResetStore.consume(provided.trim());
@@ -694,7 +712,7 @@ public class CollegeGPATracker {
                     JOptionPane.showMessageDialog(frame, "Failed to send reset email. Please check the application's SMTP settings and try again later. If the problem persists, contact support.");
                 }
             }
-        }); */
+        });
 
         // Enter-reset-code UI removed — flow is: Forgot password -> email sent with code -> user uses that code in the app (we'll provide the dialog when they click Forgot again or we can add a small entry flow later)
 
@@ -828,13 +846,8 @@ public class CollegeGPATracker {
 
         JMenu viewMenu = new JMenu("View");
         JMenuItem themeSettings = new JMenuItem("🎨 Theme Settings");
-        JMenuItem darkMode = new JMenuItem("🌙 Dark Mode");
-        JMenuItem lightMode = new JMenuItem("☀️ Light Mode");
         
         viewMenu.add(themeSettings);
-        viewMenu.addSeparator();
-        viewMenu.add(lightMode);
-        viewMenu.add(darkMode);
 
         menuBar.add(userMenu);
         menuBar.add(viewMenu);
@@ -915,10 +928,6 @@ public class CollegeGPATracker {
 
         // Modern theme menu action listeners
         themeSettings.addActionListener(_ -> ModernThemeSystem.showThemeDialog(frame));
-        
-        darkMode.addActionListener(_ -> ModernThemeSystem.setTheme(ModernThemeSystem.Theme.DARK));
-        
-        lightMode.addActionListener(_ -> ModernThemeSystem.setTheme(ModernThemeSystem.Theme.LIGHT));
 
         // Apply modern styling to the entire frame
         ModernThemeSystem.applyModernStyling(frame);

@@ -4,10 +4,9 @@
 
 ### ✨ Theme System Overhaul
 - **Dynamic Theme Engine**: Complete refactoring of theme application system
-- **4 Beautiful Color Schemes**:
+- **3 Beautiful Color Schemes**:
   - **Lavender & Red**: Elegant purple (#D4446E) with rose accents (#C1507A)
   - **Cream & Amber**: Warm beige with golden highlights (#D18529)
-  - **Crimson Noir**: Deep dark theme (#0E0E0E background, #4A0C0C primary) for late-night studying
   - **Teal & Pink**: Fresh aqua (#007C7C) with vibrant pink accents
 - **Real-time Theme Switching**: All UI components update instantly when themes change
 - **Enhanced Contrast**: Improved text readability across all themes

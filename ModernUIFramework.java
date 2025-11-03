@@ -129,7 +129,8 @@ public class ModernUIFramework {
         // Always map to ModernThemeSystem to ensure selected color scheme is respected
         try {
             ModernThemeSystem.ThemeColors mc = ModernThemeSystem.getCurrentColors();
-            boolean dark = ModernThemeSystem.getCurrentTheme() == ModernThemeSystem.Theme.DARK;
+            // Always use light theme (dark mode removed)
+            boolean dark = false;
             isDarkTheme = dark;
             Color primary = mc.primary;
             Color secondary = mc.secondary != null ? mc.secondary : mc.primary;
@@ -165,14 +166,16 @@ public class ModernUIFramework {
     public static void setDarkTheme(boolean dark) {
         isDarkTheme = dark;
         try {
-            ModernThemeSystem.setTheme(dark ? ModernThemeSystem.Theme.DARK : ModernThemeSystem.Theme.LIGHT);
+            // Theme switching disabled - always use light theme
+            ModernThemeSystem.setTheme(ModernThemeSystem.Theme.LIGHT);
         } catch (Throwable ignored) {}
         notifyThemeChange();
     }
     
     public static boolean isDarkTheme() {
         try {
-            return ModernThemeSystem.getCurrentTheme() == ModernThemeSystem.Theme.DARK;
+            // Always return false (dark mode removed)
+            return false;
         } catch (Throwable t) {
             return isDarkTheme;
         }

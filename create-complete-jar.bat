@@ -67,8 +67,8 @@ if exist GradeRise-Complete.jar (
     echo.
     echo 📦 JAR Features:
     echo    ✅ All dependencies included (self-contained)
-    echo    ✅ Beautiful Crimson Noir theme
-    echo    ✅ Modern UI with all 4 custom themes
+    echo    ✅ Beautiful modern themes (Lavender & Red, Cream & Amber, Teal & Pink)
+    echo    ✅ Modern UI with clean login interface
     echo    ✅ Complete GPA tracking system
     echo    ✅ Google OAuth integration
     echo    ✅ Grade analytics and charts
