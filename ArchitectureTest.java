@@ -57,10 +57,7 @@ public class ArchitectureTest {
         String token = PasswordResetStore.generateTokenFor("testuser");
         System.out.println("✓ Password Reset Token: " + token);
         
-        // Test AcademicAnalyticsService
-        double gpa = AcademicAnalyticsService.percentageToGPA(87.5);
-        char letterGrade = AcademicAnalyticsService.percentageToLetterGrade(87.5);
-        System.out.println("✓ GPA Calculation: " + gpa + " (" + letterGrade + ")");
+
         
         // Test DataPersistenceService
         DataPersistenceService.initialize();

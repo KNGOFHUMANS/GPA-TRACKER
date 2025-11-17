@@ -7,7 +7,6 @@ import javax.swing.table.DefaultTableModel; // For managing data in JTable compo
 import javax.swing.plaf.basic.BasicProgressBarUI; // For customizing progress bar appearance
 import javax.swing.JComponent; // Base class for all Swing components
 import javax.swing.Box; // For creating invisible spacing components
-import javax.swing.UIManager; // For setting look and feel properties
 
 // AWT (Abstract Window Toolkit) imports - for graphics, colors, fonts, and layout
 import java.awt.*; // Imports all AWT classes (Color, Font, Graphics, etc.)
@@ -155,20 +154,18 @@ public class CollegeGPATracker {
 
         /**
          * Constructor - Sets up default categories and weights for a new class
-         * Creates four default categories: Homework (35%), Exam (35%), Project (25%), Extra Credit (5%)
+         * Creates three default categories: Homework (40%), Exam (40%), Project (20%)
          */
         public ClassData() {
             // Initialize empty assignment lists for each category
             assignments.put("Homework", new ArrayList<>());
             assignments.put("Exam", new ArrayList<>());
             assignments.put("Project", new ArrayList<>());
-            assignments.put("Extra Credit", new ArrayList<>());
             
             // Set default weight distribution (totals 100%)
-            weights.put("Homework", 35);      // Homework worth 35% of grade
-            weights.put("Exam", 35);          // Exams worth 35% of grade
-            weights.put("Project", 25);       // Projects worth 25% of grade
-            weights.put("Extra Credit", 5);   // Extra Credit worth 5% of grade
+            weights.put("Homework", 40);  // Homework worth 40% of grade
+            weights.put("Exam", 40);      // Exams worth 40% of grade
+            weights.put("Project", 20);   // Projects worth 20% of grade
         }
     }
     
@@ -219,16 +216,6 @@ public class CollegeGPATracker {
                     debugWriter.println("✗ System Look and Feel failed: " + e.getMessage());
                 }
                 
-                // Force dark text colors for all UI components to ensure readability
-                UIManager.put("OptionPane.buttonForeground", Color.BLACK);
-                UIManager.put("Button.foreground", Color.BLACK);
-                UIManager.put("ToggleButton.foreground", Color.BLACK);
-                UIManager.put("OptionPane.messageForeground", Color.BLACK);
-                UIManager.put("Label.foreground", Color.BLACK);
-                UIManager.put("TextField.foreground", Color.BLACK);
-                UIManager.put("ComboBox.foreground", Color.BLACK);
-                debugWriter.println("✓ Dark text colors set for all UI components");
-                
                 // Set system properties for better EXE behavior
                 System.setProperty("java.awt.headless", "false");
                 System.setProperty("file.encoding", "UTF-8");
@@ -246,8 +233,19 @@ public class CollegeGPATracker {
                 ensureDataDir();                              // Create data directory if it doesn't exist
                 debugWriter.println("✓ Data directory ensured");
                 
-                // Initialize data system
-                debugWriter.println("✓ Using JSON file system for data storage");
+                // Initialize database system
+                try {
+                    DatabaseManager.initialize();
+                    debugWriter.println("✓ Database initialized");
+                    
+                    // Run data migration if needed
+                    DataMigration.migrateAllData();
+                    debugWriter.println("✓ Data migration completed");
+                } catch (Exception e) {
+                    debugWriter.println("✗ Database initialization failed: " + e.getMessage());
+                    // Fallback to JSON system
+                    debugWriter.println("Falling back to JSON file system");
+                }
                 
                 loadUsers();                                  // Load user accounts from database/JSON file
                 debugWriter.println("✓ Users loaded");
@@ -255,19 +253,6 @@ public class CollegeGPATracker {
                 debugWriter.println("✓ User data loaded");
                 PasswordResetStore.init(RESET_CODES_FILE);   // Initialize password reset token system
                 debugWriter.println("✓ Password reset store initialized");
-                
-                // Set UIManager properties for better dialog styling
-                try {
-                    UIManager.put("OptionPane.messageforeground", Color.BLACK);
-                    UIManager.put("OptionPane.messageForeground", Color.BLACK);
-                    UIManager.put("Button.foreground", Color.BLACK);
-                    UIManager.put("Button.background", Color.WHITE);
-                    UIManager.put("Panel.background", Color.WHITE);
-                    UIManager.put("OptionPane.background", Color.WHITE);
-                    debugWriter.println("✓ UIManager properties set for dialogs");
-                } catch (Exception e) {
-                    debugWriter.println("✗ UIManager setup failed: " + e.getMessage());
-                }
                 
                 // Initialize modern theme system
                 try {
@@ -550,8 +535,8 @@ public class CollegeGPATracker {
                                     System.getProperty("os.name").replaceAll("\\s", "");
             
             try {
-                // Use JSON-based authentication
-                String authenticatedUser = authenticateUserJSON(id, pass);
+                // Use secure authentication with rate limiting
+                String authenticatedUser = DatabaseManager.authenticateUser(id, pass, clientIdentifier);
                 
                 if (authenticatedUser != null) {
                     currentUser = authenticatedUser;
@@ -596,7 +581,7 @@ public class CollegeGPATracker {
                 String validatedUsername = SecurityManager.validateUsername(newUser);
                 
                 // Check if user exists in database first
-                if (users.containsKey(validatedUsername)) {
+                if (DatabaseManager.getUserId(validatedUsername) != -1) {
                     JOptionPane.showMessageDialog(frame, "Username already exists!");
                     return;
                 }
@@ -608,7 +593,7 @@ public class CollegeGPATracker {
                 String validatedEmail = SecurityManager.validateEmail(email);
                 
                 // Check if email already exists
-                if (emailExistsJSON(validatedEmail)) {
+                if (DatabaseManager.findUserByEmail(validatedEmail) != null) {
                     JOptionPane.showMessageDialog(frame, "Email already used.");
                     return;
                 }
@@ -631,7 +616,7 @@ public class CollegeGPATracker {
                 SecurityManager.validatePassword(newPass);
                 
                 // Create user securely with bcrypt hashing
-                if (createUserJSON(validatedUsername, newPass, validatedEmail)) {
+                if (DatabaseManager.createUserSecure(validatedUsername, newPass, validatedEmail)) {
                     // Also add to legacy users map for compatibility
                     String hashedPassword = SecurityManager.hashPassword(newPass);
                     users.put(validatedUsername, new String[]{hashedPassword, validatedEmail});
@@ -1156,31 +1141,15 @@ public class CollegeGPATracker {
             });
             suggestionBox.setEditable(true);
             
-            JLabel nameLabel = new JLabel("Semester Name:");
-            nameLabel.setForeground(Color.BLACK);
-            nameLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-            
-            JLabel suggestLabel = new JLabel("Or choose from suggestions:");
-            suggestLabel.setForeground(Color.BLACK);
-            suggestLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
-            
-            nameField.setForeground(Color.BLACK);
-            nameField.setBackground(Color.WHITE);
-            nameField.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            
-            suggestionBox.setForeground(Color.BLACK);
-            suggestionBox.setBackground(Color.WHITE);
-            suggestionBox.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            
-            inputPanel.setBackground(Color.WHITE);
-            inputPanel.add(nameLabel);
+            inputPanel.add(new JLabel("Semester Name:"));
             inputPanel.add(nameField);
-            inputPanel.add(suggestLabel);
+            inputPanel.add(new JLabel("Or choose from suggestions:"));
             inputPanel.add(suggestionBox);
             
-            boolean result = showCustomComplexDialog(parentFrame, inputPanel, "Add New Semester");
+            int result = JOptionPane.showConfirmDialog(parentFrame, inputPanel, 
+                "Add New Semester", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
             
-            if (!result) return;
+            if (result != JOptionPane.OK_OPTION) return;
             
             String semesterName = nameField.getText().trim();
             if (semesterName.isEmpty()) {
@@ -1256,13 +1225,9 @@ public class CollegeGPATracker {
         classScroll.setPreferredSize(new Dimension(260, 0));
 
         JButton addClassBtn = createGradeRiseButton("➕ Add Class", SUCCESS_EMERALD, true);
-        addClassBtn.setForeground(Color.BLACK);
         JButton deleteClassBtn = createGradeRiseButton("🗑️ Delete Class", DANGER_ROSE, false);
-        deleteClassBtn.setForeground(Color.BLACK);
         JButton toggleStatusBtn = createGradeRiseButton("📚 Toggle Status", INFO_BRAND, true);
-        toggleStatusBtn.setForeground(Color.BLACK);
         JButton removeSemesterBtn = createGradeRiseButton("⚠️ Remove Semester", DANGER_ROSE, false);
-        removeSemesterBtn.setForeground(Color.BLACK);
         removeSemesterBtn.setToolTipText("Delete this entire semester");
         
         JPanel leftTop = new JPanel(new GridLayout(2, 2, 5, 5));
@@ -1303,15 +1268,10 @@ public class CollegeGPATracker {
         classTitle.setBorder(BorderFactory.createTitledBorder(""));
 
         JButton addAssignmentBtn = createGradeRiseButton("➕ Add Assignment", SUCCESS_EMERALD, true);
-        addAssignmentBtn.setForeground(Color.BLACK);
         JButton deleteAssignmentBtn = createGradeRiseButton("🗑️ Delete Assignment", DANGER_ROSE, false);
-        deleteAssignmentBtn.setForeground(Color.BLACK);
         JButton weightsBtn = createGradeRiseButton("⚖️ Weights", INFO_BRAND, true);
-        weightsBtn.setForeground(Color.BLACK);
         JButton creditsBtn = createGradeRiseButton("💎 Credits", WARNING_AMBER, false);
-        creditsBtn.setForeground(Color.BLACK);
         JButton letterGradeBtn = createGradeRiseButton("🎓 Letter Grade", new Color(0x9333EA), false);
-        letterGradeBtn.setForeground(Color.BLACK);
         letterGradeBtn.setToolTipText("Set letter grade for past classes (A, B, C, D, F)");
         
 
@@ -1416,11 +1376,10 @@ public class CollegeGPATracker {
 
         // interactions
         addClassBtn.addActionListener(_ -> {
-            // Use custom dialog with guaranteed dark text buttons
-            String className = showCustomInputDialog(root, "Enter class name:", "Add New Class", "");
+            String className = JOptionPane.showInputDialog(root, "Enter class name:");
             if (className == null || className.trim().isEmpty()) return;
             if (userData.get(currentUser).get(semesterName).containsKey(className)) {
-                showCustomConfirmDialog(root, "Class already exists.", "Error");
+                JOptionPane.showMessageDialog(root, "Class already exists.");
                 return;
             }
             int credits = 3;
@@ -1442,10 +1401,6 @@ public class CollegeGPATracker {
         deleteClassBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) return;
-            
-            boolean confirm = showCustomConfirmDialog(root, "Delete class '" + selectedClass + "'?\nThis will remove all assignments.", "Confirm Delete");
-            if (!confirm) return;
-            
             userData.get(currentUser).get(semesterName).remove(selectedClass);
             classListModel.removeElement(selectedClass);
             model.setRowCount(0);
@@ -1493,12 +1448,12 @@ public class CollegeGPATracker {
                 return;
             }
             
-            boolean confirm = showCustomConfirmDialog(root, 
+            int confirm = JOptionPane.showConfirmDialog(root, 
                 "Are you sure you want to delete " + semesterName + "?\n" +
                 "This will permanently remove all classes and assignments in this semester.", 
-                "Delete Semester");
+                "Delete Semester", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             
-            if (confirm) {
+            if (confirm == JOptionPane.YES_OPTION) {
                 // Remove semester data
                 userData.get(currentUser).remove(semesterName);
                 // Also remove from semester order tracking
@@ -1533,7 +1488,10 @@ public class CollegeGPATracker {
             classGpaLabel.setText("Class GPA: " + String.format("%.2f", classGPA));
 
             // update charts
-            updatePieChartWithAllCategories(cd, piePanel);
+            double hwAvg = avgFor(cd, "Homework");
+            double exAvg = avgFor(cd, "Exam");
+            double prAvg = avgFor(cd, "Project");
+            piePanel.setData(hwAvg, exAvg, prAvg);
             trendPanel.setData(cd.historyPercent);
             badgePanel.setBadges(classGPA >= 3.8, isComeback(cd));
         });
@@ -1543,57 +1501,14 @@ public class CollegeGPATracker {
             if (selectedClass == null) return;
             ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
 
-            // Create custom assignment name dialog with dark text
-            JPanel assignmentPanel = new JPanel(new BorderLayout(5, 5));
-            assignmentPanel.setBackground(Color.WHITE);
-            
-            JLabel assignmentLabel = new JLabel("Assignment name:");
-            assignmentLabel.setForeground(Color.BLACK);
-            assignmentLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-            JTextField assignmentField = new JTextField();
-            assignmentField.setForeground(Color.BLACK);
-            assignmentField.setBackground(Color.WHITE);
-            assignmentField.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            
-            assignmentPanel.add(assignmentLabel, BorderLayout.NORTH);
-            assignmentPanel.add(assignmentField, BorderLayout.CENTER);
-            
-            int assignmentResult = JOptionPane.showConfirmDialog(root, assignmentPanel, "Add Assignment", 
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-            
-            String aName = null;
-            if (assignmentResult == JOptionPane.OK_OPTION) {
-                aName = assignmentField.getText();
-            }
+            String aName = JOptionPane.showInputDialog(root, "Assignment name:");
             if (aName == null || aName.trim().isEmpty()) return;
 
-            // Get existing categories from the class data, plus option to add new one
-            java.util.Set<String> existingCategories = cd.weights.keySet();
-            java.util.List<String> categoryList = new java.util.ArrayList<>(existingCategories);
-            categoryList.add("+ Add New Category");
-            
-            String[] categories = categoryList.toArray(new String[0]);
+            String[] categories = {"Homework", "Exam", "Project"};
             String category = (String) JOptionPane.showInputDialog(
                     root, "Select category:", "Assignment Type",
-                    JOptionPane.PLAIN_MESSAGE, null, categories, categories[0]);
+                    JOptionPane.PLAIN_MESSAGE, null, categories, "Homework");
             if (category == null) return;
-            
-            // Handle new category creation
-            if ("+ Add New Category".equals(category)) {
-                category = JOptionPane.showInputDialog(root, "Enter new category name:");
-                if (category == null || category.trim().isEmpty()) return;
-                category = category.trim();
-                
-                // Add new category with 0% weight initially
-                if (!cd.weights.containsKey(category)) {
-                    cd.weights.put(category, 0);
-                    cd.assignments.put(category, new java.util.ArrayList<>());
-                    JOptionPane.showMessageDialog(root, 
-                        "New category '" + category + "' added with 0% weight.\n" +
-                        "Don't forget to adjust weights using the Weights button!", 
-                        "Category Added", JOptionPane.INFORMATION_MESSAGE);
-                }
-            }
 
             String sText = JOptionPane.showInputDialog(root, "Score (%):");
             if (sText == null || sText.trim().isEmpty()) return;
@@ -1612,7 +1527,7 @@ public class CollegeGPATracker {
 
                 // refresh visuals
                 classList.repaint();
-                updatePieChartWithAllCategories(cd, piePanel);
+                piePanel.setData(avgFor(cd,"Homework"), avgFor(cd,"Exam"), avgFor(cd,"Project"));
                 trendPanel.setData(cd.historyPercent);
                 badgePanel.setBadges(percentToGPA(classPercent) >= 3.8, isComeback(cd));
             } catch (Exception ignored) {}
@@ -1640,7 +1555,7 @@ public class CollegeGPATracker {
             updateOverallGpaLabel();
 
             classList.repaint();
-            updatePieChartWithAllCategories(cd, piePanel);
+            piePanel.setData(avgFor(cd,"Homework"), avgFor(cd,"Exam"), avgFor(cd,"Project"));
             trendPanel.setData(cd.historyPercent);
             badgePanel.setBadges(percentToGPA(classPercent) >= 3.8, isComeback(cd));
         });
@@ -1650,25 +1565,37 @@ public class CollegeGPATracker {
             if (selectedClass == null) return;
             ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
 
-            showCustomWeightsDialog(root, cd, semesterName);
+            try {
+                int hw = Integer.parseInt(JOptionPane.showInputDialog(root, "Homework weight %:", cd.weights.get("Homework")));
+                int ex = Integer.parseInt(JOptionPane.showInputDialog(root, "Exam weight %:", cd.weights.get("Exam")));
+                int pr = Integer.parseInt(JOptionPane.showInputDialog(root, "Project weight %:", cd.weights.get("Project")));
+                if (hw + ex + pr != 100) {
+                    JOptionPane.showMessageDialog(root, "Weights must total 100%.");
+                    return;
+                }
+                cd.weights.put("Homework", hw);
+                cd.weights.put("Exam", ex);
+                cd.weights.put("Project", pr);
+
+                pushHistory(cd);
+                saveAllUserData();
+
+                double classPercent = calculateClassPercent(cd);
+                classGpaLabel.setText("Class GPA: " + String.format("%.2f", percentToGPA(classPercent)));
+                updateOverallGpaLabel();
+
+                classList.repaint();
+                piePanel.setData(avgFor(cd,"Homework"), avgFor(cd,"Exam"), avgFor(cd,"Project"));
+                trendPanel.setData(cd.historyPercent);
+                badgePanel.setBadges(percentToGPA(classPercent) >= 3.8, isComeback(cd));
+            } catch (Exception ignored) {}
         });
 
         creditsBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) return;
             ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
-            JTextField creditField = new JTextField(String.valueOf(cd.credits));
-            creditField.setForeground(Color.BLACK);
-            creditField.setBackground(Color.WHITE);
-            creditField.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            JPanel creditPanel = new JPanel(new BorderLayout());
-            creditPanel.setBackground(Color.WHITE);
-            JLabel creditLabel = new JLabel("Credit hours:");
-            creditLabel.setForeground(Color.BLACK);
-            creditPanel.add(creditLabel, BorderLayout.NORTH);
-            creditPanel.add(creditField, BorderLayout.CENTER);
-            
-            String newC = showCustomInputDialog(root, "Credit hours:", "Edit Credit Hours", String.valueOf(cd.credits));
+            String newC = JOptionPane.showInputDialog(root, "Credit hours:", cd.credits);
             try {
                 if (newC != null && !newC.trim().isEmpty()) {
                     int val = Math.max(0, Integer.parseInt(newC.trim()));
@@ -1683,116 +1610,38 @@ public class CollegeGPATracker {
         letterGradeBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) {
-                showCustomConfirmDialog(root, "Please select a class first.", "No Class Selected");
+                JOptionPane.showMessageDialog(root, "Please select a class first.");
                 return;
             }
             
             ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
             
-            // Letter grade options with GPA values
-            String[] grades = {"A (4.0)", "A- (3.7)", "B+ (3.3)", "B (3.0)", "B- (2.7)", "C+ (2.3)", "C (2.0)", "C- (1.7)", "D+ (1.3)", "D (1.0)", "D- (0.7)", "F (0.0)"};
-            String[] gradeValues = {"A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F"};
+            // Letter grade options
+            String[] grades = {"A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F"};
             
-            // Create modern styled panel with padding and proper layout
-            JPanel gradePanel = new JPanel();
-            gradePanel.setLayout(new BoxLayout(gradePanel, BoxLayout.Y_AXIS));
-            gradePanel.setBackground(Color.WHITE);
-            gradePanel.setBorder(BorderFactory.createEmptyBorder(25, 30, 25, 30));
-            
-            // Header section with icon and title
-            JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-            headerPanel.setBackground(Color.WHITE);
-            
-            JLabel iconLabel = new JLabel("🎓");
-            iconLabel.setFont(new Font("SansSerif", Font.PLAIN, 24));
-            
-            JLabel titleLabel = new JLabel("Set Final Grade");
-            titleLabel.setForeground(new Color(0x2D3748));
-            titleLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
-            titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
-            
-            headerPanel.add(iconLabel);
-            headerPanel.add(titleLabel);
-            
-            // Info section with better styling
-            JLabel infoLabel = new JLabel("<html><div style='color: #718096; font-size: 13px;'>Choose the final letter grade for <b>" + selectedClass + "</b></div></html>");
-            infoLabel.setFont(new Font("SansSerif", Font.PLAIN, 13));
-            infoLabel.setBorder(BorderFactory.createEmptyBorder(8, 0, 20, 0));
-            
-            // Grade selection section
-            JLabel gradeLabel = new JLabel("Letter Grade:");
-            gradeLabel.setForeground(new Color(0x2D3748));
-            gradeLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-            gradeLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
-            
+            JPanel gradePanel = new JPanel(new GridLayout(3, 1, 10, 10));
             JComboBox<String> gradeCombo = new JComboBox<>(grades);
-            gradeCombo.setForeground(new Color(0x2D3748));
-            gradeCombo.setBackground(Color.WHITE);
-            gradeCombo.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            gradeCombo.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(0xE2E8F0), 2, true),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)
-            ));
-            gradeCombo.setMaximumSize(new Dimension(250, 40));
-            gradeCombo.setPreferredSize(new Dimension(250, 40));
-            
-            // Set selected grade if it exists
             if (!cd.letterGrade.isEmpty()) {
-                for (int i = 0; i < gradeValues.length; i++) {
-                    if (gradeValues[i].equals(cd.letterGrade)) {
-                        gradeCombo.setSelectedIndex(i);
-                        break;
-                    }
-                }
+                gradeCombo.setSelectedItem(cd.letterGrade);
             }
             
-            // Custom renderer for better dropdown appearance
-            gradeCombo.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                    Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                    if (isSelected) {
-                        setBackground(new Color(0xEDF2F7));
-                        setForeground(new Color(0x2D3748));
-                    } else {
-                        setBackground(Color.WHITE);
-                        setForeground(new Color(0x2D3748));
-                    }
-                    setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-                    return c;
-                }
-            });
-            
-            // Class status section with better styling
-            JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-            statusPanel.setBackground(Color.WHITE);
-            statusPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+            JLabel infoLabel = new JLabel("<html><center>Set the final letter grade for this class.<br>This is especially useful for past/archived classes.</center></html>");
+            infoLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
             
             JCheckBox isPastCheck = new JCheckBox("Mark as Past/Archived Class", !cd.isActive);
-            isPastCheck.setForeground(new Color(0x4A5568));
-            isPastCheck.setBackground(Color.WHITE);
-            isPastCheck.setFont(new Font("SansSerif", Font.PLAIN, 13));
             isPastCheck.setToolTipText("Past classes use letter grades instead of individual assignments");
-            isPastCheck.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
             
-            statusPanel.add(isPastCheck);
-            
-            // Add components with proper spacing
-            gradePanel.add(headerPanel);
             gradePanel.add(infoLabel);
-            gradePanel.add(gradeLabel);
-            gradePanel.add(Box.createVerticalStrut(5));
+            gradePanel.add(new JLabel("Letter Grade:"));
             gradePanel.add(gradeCombo);
-            gradePanel.add(statusPanel);
-            gradePanel.add(Box.createVerticalStrut(10));
+            gradePanel.add(isPastCheck);
             
-            boolean result = showCustomComplexDialog(root, gradePanel, 
-                "Set Letter Grade - " + selectedClass);
+            int result = JOptionPane.showConfirmDialog(root, gradePanel, 
+                "Set Letter Grade - " + selectedClass, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
             
-            if (result) {
-                int selectedIndex = gradeCombo.getSelectedIndex();
-                if (selectedIndex >= 0 && selectedIndex < gradeValues.length) {
-                    String selectedGrade = gradeValues[selectedIndex];
+            if (result == JOptionPane.OK_OPTION) {
+                String selectedGrade = (String) gradeCombo.getSelectedItem();
+                if (selectedGrade != null) {
                     cd.letterGrade = selectedGrade;
                     cd.finalGrade = letterGradeToPercentage(selectedGrade);
                     
@@ -1826,9 +1675,27 @@ public class CollegeGPATracker {
             }
         });
 
-
+        // Enhanced Grade Management Features Action Listeners
         
-
+        // Analytics Button - Show grade predictions and statistics
+        analyticsBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null || selectedClass.isEmpty()) {
+                JOptionPane.showMessageDialog(root, "Please select a class first.", "No Class Selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            showGradeAnalytics(selectedClass, semesterName);
+        });
+        
+        // Charts Button - Display visual analytics
+        chartBtn.addActionListener(_ -> {
+            String selectedClass = classList.getSelectedValue();
+            if (selectedClass == null || selectedClass.isEmpty()) {
+                JOptionPane.showMessageDialog(root, "Please select a class first.", "No Class Selected", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            showGradeCharts(selectedClass, semesterName);
+        });
         
 
         
@@ -1991,7 +1858,7 @@ public class CollegeGPATracker {
         };
         
         button.setFont(new Font("SansSerif", Font.BOLD, 13));
-        button.setForeground(Color.BLACK);
+        button.setForeground(Color.WHITE);
         button.setContentAreaFilled(false);
         button.setBorderPainted(false);
         button.setFocusPainted(false);
@@ -2325,231 +2192,6 @@ public class CollegeGPATracker {
         };
     }
 
-
-    // ===== CUSTOM DIALOG UTILITIES WITH GUARANTEED DARK TEXT =====
-    
-    /**
-     * Shows a custom input dialog with guaranteed dark text buttons
-     */
-    private static String showCustomInputDialog(Component parent, String message, String title, String initialValue) {
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(parent), title, true);
-        dialog.setLayout(new BorderLayout());
-        dialog.setSize(400, 200);
-        dialog.setLocationRelativeTo(parent);
-        
-        // Main panel with white background
-        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-        mainPanel.setBackground(Color.WHITE);
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        
-        // Message label with dark text
-        JLabel messageLabel = new JLabel(message);
-        messageLabel.setForeground(Color.BLACK);
-        messageLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-        
-        // Input field with dark text
-        JTextField inputField = new JTextField(initialValue != null ? initialValue : "");
-        inputField.setForeground(Color.BLACK);
-        inputField.setBackground(Color.WHITE);
-        inputField.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        inputField.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Color.GRAY, 1),
-            BorderFactory.createEmptyBorder(5, 5, 5, 5)
-        ));
-        
-        // Button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        buttonPanel.setBackground(Color.WHITE);
-        
-        // OK and Cancel buttons with guaranteed dark text
-        JButton okButton = new JButton("OK");
-        okButton.setForeground(Color.BLACK);
-        okButton.setBackground(Color.LIGHT_GRAY);
-        okButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-        okButton.setFocusPainted(false);
-        
-        JButton cancelButton = new JButton("Cancel");
-        cancelButton.setForeground(Color.BLACK);
-        cancelButton.setBackground(Color.LIGHT_GRAY);
-        cancelButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-        cancelButton.setFocusPainted(false);
-        
-        final String[] result = new String[1];
-        
-        okButton.addActionListener(e -> {
-            result[0] = inputField.getText();
-            dialog.dispose();
-        });
-        
-        cancelButton.addActionListener(e -> {
-            result[0] = null;
-            dialog.dispose();
-        });
-        
-        // Enter key support
-        inputField.addActionListener(e -> okButton.doClick());
-        
-        buttonPanel.add(okButton);
-        buttonPanel.add(cancelButton);
-        
-        mainPanel.add(messageLabel, BorderLayout.NORTH);
-        mainPanel.add(inputField, BorderLayout.CENTER);
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
-        
-        dialog.add(mainPanel);
-        dialog.setVisible(true);
-        
-        return result[0];
-    }
-    
-    /**
-     * Shows a custom complex dialog with guaranteed dark text buttons
-     */
-    private static boolean showCustomComplexDialog(Component parent, JPanel content, String title) {
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(parent), title, true);
-        dialog.setLayout(new BorderLayout());
-        
-        // Auto-size based on content or use sensible defaults
-        int width = Math.max(450, content.getPreferredSize().width + 40);
-        int height = Math.max(300, content.getPreferredSize().height + 100);
-        dialog.setSize(width, height);
-        dialog.setLocationRelativeTo(parent);
-        
-        // Ensure content has white background and dark text
-        content.setBackground(Color.WHITE);
-        ensureAllComponentsHaveDarkText(content);
-        
-        // Modern button panel with proper spacing
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 15));
-        buttonPanel.setBackground(Color.WHITE);
-        buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
-        
-        // Modern styled OK and Cancel buttons
-        JButton okButton = new JButton("Save");
-        okButton.setForeground(Color.WHITE);
-        okButton.setBackground(new Color(0x3182CE));
-        okButton.setFont(new Font("SansSerif", Font.BOLD, 13));
-        okButton.setFocusPainted(false);
-        okButton.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
-        okButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
-        JButton cancelButton = new JButton("Cancel");
-        cancelButton.setForeground(new Color(0x4A5568));
-        cancelButton.setBackground(new Color(0xF7FAFC));
-        cancelButton.setFont(new Font("SansSerif", Font.BOLD, 13));
-        cancelButton.setFocusPainted(false);
-        cancelButton.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(0xE2E8F0), 1),
-            BorderFactory.createEmptyBorder(9, 19, 9, 19)
-        ));
-        cancelButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
-        final boolean[] result = new boolean[1];
-        
-        okButton.addActionListener(e -> {
-            result[0] = true;
-            dialog.dispose();
-        });
-        
-        cancelButton.addActionListener(e -> {
-            result[0] = false;
-            dialog.dispose();
-        });
-        
-        buttonPanel.add(okButton);
-        buttonPanel.add(cancelButton);
-        
-        dialog.add(content, BorderLayout.CENTER);
-        dialog.add(buttonPanel, BorderLayout.SOUTH);
-        dialog.setVisible(true);
-        
-        return result[0];
-    }
-    
-    /**
-     * Recursively ensures all components have dark text
-     */
-    private static void ensureAllComponentsHaveDarkText(Container container) {
-        for (Component comp : container.getComponents()) {
-            if (comp instanceof JLabel) {
-                comp.setForeground(Color.BLACK);
-                comp.setFont(new Font("SansSerif", Font.BOLD, 14));
-            } else if (comp instanceof JTextField) {
-                comp.setForeground(Color.BLACK);
-                comp.setBackground(Color.WHITE);
-            } else if (comp instanceof JComboBox) {
-                comp.setForeground(Color.BLACK);
-                comp.setBackground(Color.WHITE);
-            } else if (comp instanceof JCheckBox) {
-                comp.setForeground(Color.BLACK);
-                comp.setBackground(Color.WHITE);
-            } else if (comp instanceof Container) {
-                ensureAllComponentsHaveDarkText((Container) comp);
-            }
-        }
-    }
-    
-    /**
-     * Shows a custom confirmation dialog with guaranteed dark text buttons
-     */
-    private static boolean showCustomConfirmDialog(Component parent, String message, String title) {
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(parent), title, true);
-        dialog.setLayout(new BorderLayout());
-        dialog.setSize(400, 150);
-        dialog.setLocationRelativeTo(parent);
-        
-        // Main panel with white background
-        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-        mainPanel.setBackground(Color.WHITE);
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        
-        // Message label with dark text
-        JLabel messageLabel = new JLabel(message);
-        messageLabel.setForeground(Color.BLACK);
-        messageLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-        messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        
-        // Button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        buttonPanel.setBackground(Color.WHITE);
-        
-        // OK and Cancel buttons with guaranteed dark text
-        JButton okButton = new JButton("OK");
-        okButton.setForeground(Color.BLACK);
-        okButton.setBackground(Color.LIGHT_GRAY);
-        okButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-        okButton.setFocusPainted(false);
-        
-        JButton cancelButton = new JButton("Cancel");
-        cancelButton.setForeground(Color.BLACK);
-        cancelButton.setBackground(Color.LIGHT_GRAY);
-        cancelButton.setFont(new Font("SansSerif", Font.BOLD, 12));
-        cancelButton.setFocusPainted(false);
-        
-        final boolean[] result = new boolean[1];
-        
-        okButton.addActionListener(e -> {
-            result[0] = true;
-            dialog.dispose();
-        });
-        
-        cancelButton.addActionListener(e -> {
-            result[0] = false;
-            dialog.dispose();
-        });
-        
-        buttonPanel.add(okButton);
-        buttonPanel.add(cancelButton);
-        
-        mainPanel.add(messageLabel, BorderLayout.CENTER);
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
-        
-        dialog.add(mainPanel);
-        dialog.setVisible(true);
-        
-        return result[0];
-    }
-
     // ===== SAVE/LOAD (JSON with Gson) =====
     private static void ensureDataDir() {
         try {
@@ -2590,18 +2232,23 @@ public class CollegeGPATracker {
 
     private static void loadUsers() {
         try {
-            // Load from JSON file system
-            File f = new File(USERS_FILE);
-            if (f.exists()) {
-                try (FileReader fr = new FileReader(f)) {
-                    Map<String, String[]> map = gson.fromJson(fr, new TypeToken<Map<String, String[]>>(){}.getType());
-                    if (map != null) users = map;
-                } catch (Exception e) { 
-                    System.err.println("Error loading users file: " + e.getMessage());
+            // Try loading from database first
+            users = DatabaseManager.getAllUsers();
+            
+            if (users.isEmpty()) {
+                // Fallback to JSON file system if database is empty
+                File f = new File(USERS_FILE);
+                if (f.exists()) {
+                    try (FileReader fr = new FileReader(f)) {
+                        Map<String, String[]> map = gson.fromJson(fr, new TypeToken<Map<String, String[]>>(){}.getType());
+                        if (map != null) users = map;
+                    } catch (Exception e) { 
+                        System.err.println("Error loading users file: " + e.getMessage());
+                        users = new HashMap<>();
+                    }
+                } else {
                     users = new HashMap<>();
                 }
-            } else {
-                users = new HashMap<>();
             }
 
             // Load username changes (still from JSON for now)
@@ -3156,264 +2803,504 @@ public class CollegeGPATracker {
     /**
      * Show Grade Analytics Dialog with predictions and statistics
      */
+    private static void showGradeAnalytics(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null || course.getAssignments().isEmpty()) {
+            JOptionPane.showMessageDialog(null, 
+                "No assignment data available for analytics.", 
+                "Insufficient Data", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        // Create analytics dialog
+        JDialog dialog = new JDialog((JFrame) null, "📊 Grade Analytics - " + className, true);
+        dialog.setSize(800, 600);
+        dialog.setLocationRelativeTo(null);
+        
+        JTabbedPane tabbedPane = new JTabbedPane();
+        
+        // Predictions Tab
+        tabbedPane.addTab("🔮 Predictions", createPredictionsPanel(course));
+        
+        // Statistics Tab
+        tabbedPane.addTab("📈 Statistics", createStatisticsPanel(course));
+        
+        // Trends Tab
+        tabbedPane.addTab("📊 Trends", createTrendsPanel(course));
+        
+        dialog.add(tabbedPane);
+        dialog.setVisible(true);
+    }
     
     /**
      * Show Grade Charts Dialog with visual analytics
      */
+    private static void showGradeCharts(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null || course.getAssignments().isEmpty()) {
+            JOptionPane.showMessageDialog(null, 
+                "No assignment data available for charts.", 
+                "Insufficient Data", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        JDialog dialog = new JDialog((JFrame) null, "📈 Grade Charts - " + className, true);
+        dialog.setSize(900, 700);
+        dialog.setLocationRelativeTo(null);
+        
+        JTabbedPane tabbedPane = new JTabbedPane();
+        
+        // Grade Trend Chart
+        tabbedPane.addTab("📈 Trend", GradeChartGenerator.createGradeTrendChart(course));
+        
+        // Grade Distribution
+        tabbedPane.addTab("📊 Distribution", GradeChartGenerator.createGradeDistributionChart(course));
+        
+        // Category Performance
+        tabbedPane.addTab("📋 Categories", GradeChartGenerator.createCategoryPerformanceChart(course));
+        
+        // Box Plot
+        tabbedPane.addTab("📦 Statistics", GradeChartGenerator.createGradeBoxPlot(course));
+        
+        dialog.add(tabbedPane);
+        dialog.setVisible(true);
+    }
     
     /**
      * Show What-If Scenarios Dialog for grade planning
      */
-    
-    /**
-     * Show Export Dialog for generating reports
-     */
-    
-
-    
-    /**
-     * Convert ClassData to Course object for analytics
-     */
-    
-    /**
-     * Helper method to create external Assignment and add to course
-     * (avoids name collision with internal Assignment class)
-     */
-    
-    /**
-     * Create Predictions Panel for Analytics
-     */
-    
-    /**
-     * Create Statistics Panel for Analytics
-     */
-    
-    /**
-     * Create Trends Panel for Analytics
-     */
-    
-    /**
-     * Display scenario result in text area
-     */
-    
-    /**
-     * Open Interactive Data Visualization Dashboard
-     */
-    
-    // JSON-based user management helper methods
-    
-    /**
-     * Authenticate user using JSON data
-     */
-    private static String authenticateUserJSON(String username, String password) {
-        if (users.containsKey(username)) {
-            String[] userData = users.get(username);
-            if (userData != null && userData.length > 0 && userData[0].equals(password)) {
-                return username;
-            }
+    private static void showWhatIfScenarios(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null || course.getAssignments().isEmpty()) {
+            JOptionPane.showMessageDialog(null, 
+                "No assignment data available for scenarios.", 
+                "Insufficient Data", JOptionPane.INFORMATION_MESSAGE);
+            return;
         }
-        return null;
-    }
-    
-    /**
-     * Check if email exists in JSON data
-     */
-    private static boolean emailExistsJSON(String email) {
-        for (String[] userData : users.values()) {
-            if (userData != null && userData.length > 1 && email.equals(userData[1])) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    /**
-     * Create new user in JSON data
-     */
-    private static boolean createUserJSON(String username, String password, String email) {
-        try {
-            users.put(username, new String[]{password, email});
-            saveUsers();
-            return true;
-        } catch (Exception e) {
-            System.err.println("Error creating user: " + e.getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Show custom weights dialog for managing category weights
-     */
-    private static void showCustomWeightsDialog(JPanel parent, ClassData cd, String semesterName) {
-        JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(parent), "Customize Weights", true);
-        dialog.setSize(500, 400);
-        dialog.setLocationRelativeTo(parent);
+        
+        JDialog dialog = new JDialog((JFrame) null, "🎯 What-If Scenarios - " + className, true);
+        dialog.setSize(800, 600);
+        dialog.setLocationRelativeTo(null);
         
         JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setBackground(Color.WHITE);
         
-        // Category weights panel
-        JPanel weightsPanel = new JPanel(new GridBagLayout());
-        weightsPanel.setBackground(Color.WHITE);
-        weightsPanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(Color.GRAY), 
-            "Category Weights", 
-            0, 0, 
-            new Font("SansSerif", Font.BOLD, 14), 
-            Color.BLACK));
+        // Scenario Selection Panel
+        JPanel topPanel = new JPanel(new FlowLayout());
+        topPanel.setBorder(BorderFactory.createTitledBorder("Select Scenario Type"));
         
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        
-        Map<String, JTextField> weightFields = new HashMap<>();
-        int row = 0;
-        
-        // Add existing categories
-        for (String category : cd.weights.keySet()) {
-            gbc.gridx = 0; gbc.gridy = row; gbc.anchor = GridBagConstraints.WEST;
-            JLabel categoryLabel = new JLabel(category + ":");
-            categoryLabel.setForeground(Color.BLACK);
-            categoryLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-            weightsPanel.add(categoryLabel, gbc);
-            
-            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-            JTextField field = new JTextField(cd.weights.get(category).toString(), 10);
-            field.setForeground(Color.BLACK);
-            field.setBackground(Color.WHITE);
-            field.setFont(new Font("SansSerif", Font.PLAIN, 14));
-            weightFields.put(category, field);
-            weightsPanel.add(field, gbc);
-            
-            gbc.gridx = 2; gbc.fill = GridBagConstraints.NONE;
-            weightsPanel.add(new JLabel("%"), gbc);
-            
-            // Add delete button for non-default categories
-            if (!Arrays.asList("Homework", "Exam", "Project").contains(category)) {
-                gbc.gridx = 3;
-                JButton deleteBtn = new JButton("✖");
-                deleteBtn.setForeground(Color.BLACK);
-                deleteBtn.setBackground(Color.WHITE);
-                deleteBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
-                deleteBtn.setToolTipText("Delete " + category);
-                deleteBtn.addActionListener(e -> {
-                    if (cd.assignments.get(category).isEmpty() || 
-                        JOptionPane.showConfirmDialog(dialog, 
-                            "Delete category '" + category + "' and all its assignments?", 
-                            "Confirm Delete", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
-                        cd.weights.remove(category);
-                        cd.assignments.remove(category);
-                        dialog.dispose();
-                        showCustomWeightsDialog(parent, cd, semesterName);
-                    }
-                });
-                weightsPanel.add(deleteBtn, gbc);
-            }
-            row++;
-        }
-        
-        // Add new category button
-        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 2;
-        JButton addCategoryBtn = new JButton("+ Add New Category");
-        addCategoryBtn.setForeground(Color.BLACK);
-        addCategoryBtn.setBackground(Color.WHITE);
-        addCategoryBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
-        addCategoryBtn.addActionListener(e -> {
-            String newCategory = JOptionPane.showInputDialog(dialog, "Enter new category name:");
-            if (newCategory != null && !newCategory.trim().isEmpty()) {
-                newCategory = newCategory.trim();
-                if (!cd.weights.containsKey(newCategory)) {
-                    cd.weights.put(newCategory, 0);
-                    cd.assignments.put(newCategory, new ArrayList<>());
-                    dialog.dispose();
-                    showCustomWeightsDialog(parent, cd, semesterName);
-                } else {
-                    JOptionPane.showMessageDialog(dialog, "Category already exists!");
-                }
-            }
+        JComboBox<String> scenarioCombo = new JComboBox<>(new String[]{
+            "Grade Goal Planning",
+            "Final Exam Impact",
+            "Assignment Skip Analysis",
+            "Improvement Planning"
         });
-        weightsPanel.add(addCategoryBtn, gbc);
         
-        mainPanel.add(weightsPanel, BorderLayout.CENTER);
+        JButton runScenarioBtn = createGradeRiseButton("🚀 Run Scenario", SUCCESS_EMERALD, true);
         
-        // Buttons panel
-        JPanel buttonPanel = new JPanel(new FlowLayout());
+        topPanel.add(new JLabel("Scenario: "));
+        topPanel.add(scenarioCombo);
+        topPanel.add(runScenarioBtn);
         
-        JButton saveBtn = new JButton("Save Weights");
-        saveBtn.setForeground(Color.BLACK);
-        saveBtn.setBackground(Color.WHITE);
-        saveBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
-        saveBtn.addActionListener(e -> {
+        // Results Panel
+        JTextArea resultsArea = new JTextArea(20, 60);
+        resultsArea.setEditable(false);
+        resultsArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        JScrollPane scrollPane = new JScrollPane(resultsArea);
+        scrollPane.setBorder(BorderFactory.createTitledBorder("Scenario Results"));
+        
+        mainPanel.add(topPanel, BorderLayout.NORTH);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Action listener for scenario execution
+        runScenarioBtn.addActionListener(_ -> {
+            String selectedScenario = (String) scenarioCombo.getSelectedItem();
+            WhatIfScenarioManager.ScenarioResult result = null;
+            
             try {
-                int total = 0;
-                Map<String, Integer> newWeights = new HashMap<>();
-                
-                for (String category : weightFields.keySet()) {
-                    int weight = Integer.parseInt(weightFields.get(category).getText());
-                    if (weight < 0) {
-                        JOptionPane.showMessageDialog(dialog, "Weights cannot be negative!");
-                        return;
-                    }
-                    newWeights.put(category, weight);
-                    total += weight;
+                switch (selectedScenario) {
+                    case "Grade Goal Planning":
+                        String targetStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter your target grade (e.g., 90):", "Target Grade", JOptionPane.QUESTION_MESSAGE);
+                        if (targetStr != null) {
+                            double target = Double.parseDouble(targetStr);
+                            result = WhatIfScenarioManager.calculateGradeGoalScenario(course, target);
+                        }
+                        break;
+                        
+                    case "Final Exam Impact":
+                        String weightStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter final exam weight (e.g., 0.3 for 30%):", "Final Weight", JOptionPane.QUESTION_MESSAGE);
+                        if (weightStr != null) {
+                            double weight = Double.parseDouble(weightStr);
+                            result = WhatIfScenarioManager.calculateFinalExamImpactScenario(course, weight, 100, 90, 80, 70, 60);
+                        }
+                        break;
+                        
+                    case "Assignment Skip Analysis":
+                        String skipWeightStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter assignment weight (e.g., 0.05 for 5%):", "Assignment Weight", JOptionPane.QUESTION_MESSAGE);
+                        if (skipWeightStr != null) {
+                            double skipWeight = Double.parseDouble(skipWeightStr);
+                            result = WhatIfScenarioManager.calculateAssignmentSkipScenario(course, skipWeight);
+                        }
+                        break;
+                        
+                    case "Improvement Planning":
+                        String improvementStr = JOptionPane.showInputDialog(dialog, 
+                            "Enter desired improvement (points, e.g., 5):", "Improvement Goal", JOptionPane.QUESTION_MESSAGE);
+                        if (improvementStr != null) {
+                            double improvement = Double.parseDouble(improvementStr);
+                            result = WhatIfScenarioManager.calculateImprovementPlanScenario(course, improvement);
+                        }
+                        break;
                 }
                 
-                if (total != 100) {
-                    int confirm = JOptionPane.showConfirmDialog(dialog,
-                        "Weights total " + total + "% instead of 100%. Continue anyway?",
-                        "Weight Warning", JOptionPane.YES_NO_OPTION);
-                    if (confirm != JOptionPane.YES_OPTION) return;
+                if (result != null) {
+                    displayScenarioResult(result, resultsArea);
                 }
                 
-                cd.weights.putAll(newWeights);
-                pushHistory(cd);
-                saveAllUserData();
-                
-                JOptionPane.showMessageDialog(dialog, "Weights updated successfully!");
-                dialog.dispose();
-                
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(dialog, "Please enter valid numbers for all weights!");
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(dialog, "Please enter a valid number.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
             }
         });
-        
-        JButton cancelBtn = new JButton("Cancel");
-        cancelBtn.setForeground(Color.BLACK);
-        cancelBtn.setBackground(Color.WHITE);
-        cancelBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
-        cancelBtn.addActionListener(e -> dialog.dispose());
-        
-        buttonPanel.add(saveBtn);
-        buttonPanel.add(cancelBtn);
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
         
         dialog.add(mainPanel);
         dialog.setVisible(true);
     }
     
     /**
-     * Update pie chart with all available categories
+     * Show Export Dialog for generating reports
      */
-    private static void updatePieChartWithAllCategories(ClassData cd, PiePanel piePanel) {
-        // For now, still use the first 3 categories for the pie chart
-        // In the future, this could be enhanced to show all categories
-        String[] categories = cd.weights.keySet().toArray(new String[0]);
+    private static void exportGradeReport(String className, String semesterName) {
+        Course course = convertToCourse(className, semesterName);
+        if (course == null) {
+            JOptionPane.showMessageDialog(null, "No data available for export.", "Export Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         
-        if (categories.length >= 3) {
-            piePanel.setData(
-                avgFor(cd, categories[0]),
-                avgFor(cd, categories[1]),
-                avgFor(cd, categories[2])
-            );
-        } else if (categories.length == 2) {
-            piePanel.setData(
-                avgFor(cd, categories[0]),
-                avgFor(cd, categories[1]),
-                0
-            );
-        } else if (categories.length == 1) {
-            piePanel.setData(avgFor(cd, categories[0]), 0, 0);
-        } else {
-            piePanel.setData(0, 0, 0);
+        // Format selection dialog
+        String[] formats = {"PDF Document", "HTML Report", "CSV Data", "Excel Spreadsheet"};
+        String selectedFormat = (String) JOptionPane.showInputDialog(null,
+            "Select export format:", "Export Grade Report",
+            JOptionPane.QUESTION_MESSAGE, null, formats, formats[0]);
+        
+        if (selectedFormat == null) return;
+        
+        GradeExporter.ExportFormat format;
+        switch (selectedFormat) {
+            case "PDF Document": format = GradeExporter.ExportFormat.PDF; break;
+            case "HTML Report": format = GradeExporter.ExportFormat.HTML; break;
+            case "CSV Data": format = GradeExporter.ExportFormat.CSV; break;
+            case "Excel Spreadsheet": format = GradeExporter.ExportFormat.EXCEL; break;
+            default: return;
+        }
+        
+        // Show file chooser
+        File exportFile = GradeExporter.showExportFileChooser(null, format);
+        if (exportFile == null) return;
+        
+        // Create export configuration
+        GradeExporter.ExportConfig config = new GradeExporter.ExportConfig(
+            format, GradeExporter.ReportType.COURSE_SUMMARY, exportFile.getAbsolutePath());
+        
+        // Show progress dialog
+        JDialog progressDialog = GradeExporter.createExportProgressDialog(null);
+        
+        // Export in background thread
+        SwingUtilities.invokeLater(() -> {
+            progressDialog.setVisible(true);
+            
+            new Thread(() -> {
+                GradeExporter.ExportResult result = GradeExporter.exportGrades(config, course);
+                
+                SwingUtilities.invokeLater(() -> {
+                    progressDialog.dispose();
+                    
+                    if (result.isSuccess()) {
+                        JOptionPane.showMessageDialog(null,
+                            String.format("Report exported successfully!\\n\\nFile: %s\\nSize: %s",
+                                result.getFilePath(), result.getFormattedFileSize()),
+                            "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(null,
+                            "Export failed: " + result.getMessage(),
+                            "Export Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            }).start();
+        });
+    }
+    
+    // Helper Methods for Enhanced Features
+    
+    /**
+     * Convert ClassData to Course object for analytics
+     */
+    private static Course convertToCourse(String className, String semesterName) {
+        Map<String, ClassData> semesterData = userData.get(currentUser).get(semesterName);
+        if (semesterData == null) return null;
+        
+        ClassData classData = semesterData.get(className);
+        if (classData == null) return null;
+        
+        Course course = new Course(className, classData.credits);
+        
+        // Convert assignments - note: using the internal Assignment class from CollegeGPATracker
+        // and converting to the enhanced Assignment class
+        for (Map.Entry<String, List<Assignment>> entry : classData.assignments.entrySet()) {
+            String category = entry.getKey();
+            for (Assignment internalAssignment : entry.getValue()) {
+                // Convert internal assignment percentage to score out of 100
+                double score = internalAssignment.score; // This is already a percentage
+                
+                // Create external Assignment object for enhanced grade management
+                // Directly call addAssignment with constructor to avoid name collision
+                createAndAddAssignment(course, internalAssignment.name, score, category);
+            }
+        }
+        
+        return course;
+    }
+    
+    /**
+     * Helper method to create external Assignment and add to course
+     * (avoids name collision with internal Assignment class)
+     */
+    private static void createAndAddAssignment(Course course, String name, double score, String category) {
+        // Use reflection to create the external Assignment to avoid name collision
+        try {
+            Class<?> externalAssignmentClass = Class.forName("Assignment");
+            java.lang.reflect.Constructor<?> constructor = externalAssignmentClass.getConstructor(String.class, double.class, String.class);
+            Object externalAssignment = constructor.newInstance(name, score, category);
+            
+            // Call addAssignment method using reflection
+            java.lang.reflect.Method addMethod = Course.class.getMethod("addAssignment", externalAssignmentClass);
+            addMethod.invoke(course, externalAssignment);
+        } catch (Exception e) {
+            System.err.println("Error creating external Assignment: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Create Predictions Panel for Analytics
+     */
+    private static JPanel createPredictionsPanel(Course course) {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        JTextArea textArea = new JTextArea(20, 60);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        
+        StringBuilder content = new StringBuilder();
+        content.append("🔮 GRADE PREDICTIONS FOR ").append(course.getName().toUpperCase()).append("\\n");
+        content.append("=".repeat(60)).append("\\n\\n");
+        
+        // Generate predictions using different models
+        GradeAnalyticsEngine.PredictionModel[] models = {
+            GradeAnalyticsEngine.PredictionModel.WEIGHTED_AVERAGE,
+            GradeAnalyticsEngine.PredictionModel.LINEAR_REGRESSION,
+            GradeAnalyticsEngine.PredictionModel.MOMENTUM_BASED,
+            GradeAnalyticsEngine.PredictionModel.DIFFICULTY_ADJUSTED
+        };
+        
+        for (GradeAnalyticsEngine.PredictionModel model : models) {
+            GradeAnalyticsEngine.GradePrediction prediction = 
+                GradeAnalyticsEngine.predictFinalGrade(course, model);
+            
+            content.append(String.format("📊 %s MODEL:\\n", model.toString().replace("_", " ")));
+            content.append(String.format("   Likely Grade: %.2f%%\\n", prediction.getLikelyGrade()));
+            content.append(String.format("   Conservative: %.2f%%\\n", prediction.getConservativeGrade()));
+            content.append(String.format("   Optimistic: %.2f%%\\n", prediction.getOptimisticGrade()));
+            content.append(String.format("   Confidence: %.1f%%\\n", prediction.getConfidenceScore() * 100));
+            content.append(String.format("   Trend: %s\\n\\n", prediction.getTrendDescription()));
+        }
+        
+        textArea.setText(content.toString());
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    /**
+     * Create Statistics Panel for Analytics
+     */
+    private static JPanel createStatisticsPanel(Course course) {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        JTextArea textArea = new JTextArea(20, 60);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        
+        GradeAnalyticsEngine.GradeStatistics stats = 
+            GradeAnalyticsEngine.calculateStatistics(course.getAllAssignments());
+        
+        StringBuilder content = new StringBuilder();
+        content.append("📈 GRADE STATISTICS FOR ").append(course.getName().toUpperCase()).append("\\n");
+        content.append("=".repeat(60)).append("\\n\\n");
+        
+        content.append(String.format("📊 DESCRIPTIVE STATISTICS:\\n"));
+        content.append(String.format("   Mean (Average): %.2f%%\\n", stats.getMean()));
+        content.append(String.format("   Median: %.2f%%\\n", stats.getMedian()));
+        content.append(String.format("   Mode: %.2f%%\\n", stats.getMode()));
+        content.append(String.format("   Standard Deviation: %.2f\\n", stats.getStandardDeviation()));
+        content.append(String.format("   Variance: %.2f\\n", stats.getVariance()));
+        content.append(String.format("   Range: %.2f%%\\n\\n", stats.getRange()));
+        
+        content.append(String.format("📦 QUARTILE ANALYSIS:\\n"));
+        content.append(String.format("   First Quartile (Q1): %.2f%%\\n", stats.getQuartile1()));
+        content.append(String.format("   Third Quartile (Q3): %.2f%%\\n", stats.getQuartile3()));
+        content.append(String.format("   Interquartile Range: %.2f%%\\n\\n", stats.getQuartile3() - stats.getQuartile1()));
+        
+        content.append(String.format("📋 SUMMARY:\\n"));
+        content.append(String.format("   Total Assignments: %d\\n", stats.getTotalAssignments()));
+        
+        GradeAnalyticsEngine.TrendType trend = GradeAnalyticsEngine.analyzeTrend(course.getAllAssignments());
+        content.append(String.format("   Performance Trend: %s\\n", trend.toString()));
+        
+        textArea.setText(content.toString());
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    /**
+     * Create Trends Panel for Analytics
+     */
+    private static JPanel createTrendsPanel(Course course) {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        // Add the trend chart
+        GradeChartGenerator.ModernChartPanel chartPanel = 
+            GradeChartGenerator.createGradeTrendChart(course);
+        
+        panel.add(chartPanel, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    /**
+     * Display scenario result in text area
+     */
+    private static void displayScenarioResult(WhatIfScenarioManager.ScenarioResult result, JTextArea textArea) {
+        StringBuilder content = new StringBuilder();
+        
+        content.append("🎯 ").append(result.getScenarioName().toUpperCase()).append("\\n");
+        content.append("=".repeat(60)).append("\\n\\n");
+        
+        content.append(String.format("📊 SCENARIO SUMMARY:\\n"));
+        content.append(String.format("   Achievable: %s\\n", result.isAchievable() ? "✅ Yes" : "❌ No"));
+        content.append(String.format("   Current Grade: %.2f%%\\n", result.getCurrentGrade()));
+        content.append(String.format("   Projected Grade: %.2f%%\\n", result.getProjectedGrade()));
+        content.append(String.format("   Required Grade: %.2f%%\\n", result.getRequiredGrade()));
+        content.append(String.format("   Difficulty: %s (%.1f/10)\\n\\n", 
+            result.getDifficultyLevel(), result.getDifficultyScore()));
+        
+        content.append("💡 RECOMMENDATIONS:\\n");
+        for (String recommendation : result.getRecommendations()) {
+            content.append("   • ").append(recommendation).append("\\n");
+        }
+        
+        content.append("\\n📋 ACTION PLANS:\\n");
+        for (WhatIfScenarioManager.ActionPlan plan : result.getActionPlans()) {
+            content.append(String.format("   %s %s\\n", plan.getPriorityLabel(), plan.getTitle()));
+            content.append(String.format("      Impact: +%.1f points | Time: %d hours\\n", 
+                plan.getExpectedImpact(), plan.getEstimatedHours()));
+            content.append(String.format("      %s\\n", plan.getDescription()));
+            for (String step : plan.getSteps()) {
+                content.append(String.format("      → %s\\n", step));
+            }
+            content.append("\\n");
+        }
+        
+        if (!result.getImpactAnalysis().isEmpty()) {
+            content.append("📈 IMPACT ANALYSIS:\\n");
+            for (Map.Entry<String, Double> entry : result.getImpactAnalysis().entrySet()) {
+                content.append(String.format("   %s: %.2f\\n", entry.getKey(), entry.getValue()));
+            }
+        }
+        
+        textArea.setText(content.toString());
+        textArea.setCaretPosition(0);
+    }
+    
+    /**
+     * Open Interactive Data Visualization Dashboard
+     */
+    private static void openVisualizationDashboard() {
+        try {
+            // Convert current user data to User object for dashboard
+            User dashboardUser = convertToUserObject();
+            
+            if (dashboardUser == null || dashboardUser.getAllSemesters().isEmpty()) {
+                JOptionPane.showMessageDialog(null,
+                    "No semester data available for visualization.\n" +
+                    "Please add some courses and assignments first.",
+                    "Insufficient Data",
+                    JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            
+            // Launch the visualization dashboard
+            VisualizationDashboard.showVisualizationDashboard(dashboardUser, null);
+            
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null,
+                "Error opening visualization dashboard: " + e.getMessage(),
+                "Dashboard Error",
+                JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Convert current user data to User object for visualization
+     */
+    private static User convertToUserObject() {
+        try {
+            User user = new User();
+            
+            // Get all semester data for current user
+            Map<String, Map<String, ClassData>> allUserData = userData.get(currentUser);
+            if (allUserData == null) return null;
+            
+            // Convert each semester
+            for (Map.Entry<String, Map<String, ClassData>> semesterEntry : allUserData.entrySet()) {
+                String semesterName = semesterEntry.getKey();
+                Map<String, ClassData> semesterData = semesterEntry.getValue();
+                
+                Semester semester = new Semester(semesterName);
+                
+                // Convert each course in the semester
+                for (Map.Entry<String, ClassData> courseEntry : semesterData.entrySet()) {
+                    String courseName = courseEntry.getKey();
+                    ClassData classData = courseEntry.getValue();
+                    
+                    Course course = new Course(courseName, classData.credits);
+                    
+                    // Convert assignments
+                    for (Map.Entry<String, List<Assignment>> assignmentEntry : classData.assignments.entrySet()) {
+                        String category = assignmentEntry.getKey();
+                        for (Assignment internalAssignment : assignmentEntry.getValue()) {
+                            // Create external Assignment and add to course
+                            createAndAddAssignment(course, internalAssignment.name, 
+                                                 internalAssignment.score, category);
+                        }
+                    }
+                    
+                    semester.addCourse(course);
+                }
+                
+                user.addSemester(semester);
+            }
+            
+            return user;
+            
+        } catch (Exception e) {
+            System.err.println("Error converting user data: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         }
     }
 }
