@@ -19,6 +19,7 @@ import java.awt.image.BufferedImage; // For creating custom images from icons
 // Java utility imports - for collections and data structures
 import java.util.List; // For using List interface (ordered collections)
 import java.util.*; // Imports all utility classes (Map, HashMap, ArrayList, etc.)
+import java.util.HashMap; // Explicitly import HashMap\nimport java.util.Objects; // For null-safe operations
 
 // Import external Assignment class to avoid name collision
 // (Note: This line will import the external Assignment.class file)
@@ -95,6 +96,12 @@ public class CollegeGPATracker {
     private static final Color BG_LIGHT = new Color(0xE5E7EB);       // Light grey background
     private static final Color CARD_LIGHT = new Color(0xF9FAFB);     // Light grey cards
     
+    // ===== MODERN TYPOGRAPHY HIERARCHY =====
+    private static final Font HEADING_LARGE = new Font("SansSerif", Font.BOLD, 28);
+    private static final Font HEADING_MEDIUM = new Font("SansSerif", Font.BOLD, 20);
+    private static final Font BODY_LARGE = new Font("SansSerif", Font.PLAIN, 16);
+    private static final Font BODY_BOLD = new Font("SansSerif", Font.BOLD, 14);
+    
     // Text colors
     private static final Color TEXT_DARK = new Color(0x1F2937);      // Dark text on light
     private static final Color TEXT_MUTED = new Color(0x6B7280);     // Muted grey text
@@ -130,64 +137,145 @@ public class CollegeGPATracker {
      * and historical performance data for trend analysis
      */
     static class ClassData {
-        // Maps category name (Homework, Exam, Project) to list of assignments in that category
+        // Maps category name to list of assignments in that category
         Map<String, List<Assignment>> assignments = new HashMap<>();
         
-        // Maps category name to its weight percentage (must total 100%)
-        Map<String, Integer> weights = new HashMap<>();
+        // Maps category name to its weight percentage (should total 100% in weighted mode)
+        Map<String, Double> weights = new HashMap<>();
         
         // Historical list of class percentage scores for trend tracking
         List<Double> historyPercent = new ArrayList<>();
         
         // Number of credit hours this class is worth (affects overall GPA calculation)
-        int credits = 3; // Default to 3 credit hours per class
+        int credits = 3;
         
         // Class status: true = active (affects current GPA), false = past (archived)
-        boolean isActive = true; // Default to active for new classes
+        boolean isActive = true;
         
         // Final grade for past classes (when assignments aren't tracked individually)
-        // -1 means no final grade set, 0-100 represents the final percentage
         double finalGrade = -1.0;
         
         // Letter grade for past classes (A, B, C, D, F)
-        // Empty string means no letter grade set
         String letterGrade = "";
+        
+        // Grading calculation mode
+        public enum GradingMode {
+            WEIGHTED,     // Category averages multiplied by weights
+            TOTAL_POINTS  // Sum of all earned / sum of all possible points
+        }
+        
+        GradingMode gradingMode = GradingMode.WEIGHTED; // Default to weighted mode
 
         /**
-         * Constructor - Sets up default categories and weights for a new class
-         * Creates four default categories: Homework (35%), Exam (35%), Project (25%), Extra Credit (5%)
+         * Constructor - Creates empty class with no default categories
+         * User must add their own categories and weights
          */
         public ClassData() {
-            // Initialize empty assignment lists for each category
-            assignments.put("Homework", new ArrayList<>());
-            assignments.put("Exam", new ArrayList<>());
-            assignments.put("Project", new ArrayList<>());
-            assignments.put("Extra Credit", new ArrayList<>());
+            // Start with empty categories - user will add their own
+            // No default weights - completely customizable
+        }
+        
+        /**
+         * Add a new category with specified weight
+         */
+        public void addCategory(String categoryName, double weight) {
+            if (!assignments.containsKey(categoryName)) {
+                assignments.put(categoryName, new ArrayList<>());
+                weights.put(categoryName, weight);
+            }
+        }
+        
+        /**
+         * Remove a category and all its assignments
+         */
+        public void removeCategory(String categoryName) {
+            assignments.remove(categoryName);
+            weights.remove(categoryName);
+        }
+        
+        /**
+         * Get total weight of all categories
+         */
+        public double getTotalWeight() {
+            return weights.values().stream().mapToDouble(Double::doubleValue).sum();
+        }
+        
+        /**
+         * Check if weights are properly configured (sum to 100% in weighted mode)
+         */
+        public boolean hasValidWeights() {
+            if (gradingMode == GradingMode.TOTAL_POINTS) return true;
+            double total = getTotalWeight();
+            return Math.abs(total - 100.0) < 0.01; // Allow small floating point errors
+        }
+        
+        /**
+         * Get category average percentage
+         */
+        public double getCategoryAverage(String category) {
+            List<Assignment> categoryAssignments = assignments.get(category);
+            if (categoryAssignments == null || categoryAssignments.isEmpty()) {
+                return 0.0;
+            }
             
-            // Set default weight distribution (totals 100%)
-            weights.put("Homework", 35);      // Homework worth 35% of grade
-            weights.put("Exam", 35);          // Exams worth 35% of grade
-            weights.put("Project", 25);       // Projects worth 25% of grade
-            weights.put("Extra Credit", 5);   // Extra Credit worth 5% of grade
+            return categoryAssignments.stream()
+                .mapToDouble(Assignment::getPercentage)
+                .average().orElse(0.0);
         }
     }
     
     /**
      * Assignment - Represents a single assignment/test/project
-     * Simple data class holding the assignment's name, score, and category
+     * Uses earned/total points system with automatic percentage calculation
      */
     static class Assignment {
-        String name;     // Name of the assignment (e.g., "Homework 1", "Midterm Exam")
-        double score;    // Score as a percentage (0-100)
-        String category; // Which category this belongs to (Homework, Exam, Project)
+        String name;        // Name of the assignment (e.g., "Homework 1", "Midterm Exam")
+        double earnedPoints;  // Points earned (can be > totalPoints for extra credit)
+        double totalPoints;   // Total points possible
+        String category;    // Which category this belongs to
         
         /**
-         * Constructor - Creates a new assignment with the given details
+         * Constructor - Creates assignment with earned/total points
+         */
+        Assignment(String name, double earnedPoints, double totalPoints, String category) {
+            this.name = name;
+            this.earnedPoints = earnedPoints;
+            this.totalPoints = totalPoints;
+            this.category = category;
+        }
+        
+        /**
+         * Backward compatibility constructor for percentage-based scores
+         * Converts percentage to earned/total format (assuming 100 total points)
          */
         Assignment(String name, double score, String category) {
-            this.name = name;         // Store assignment name
-            this.score = score;       // Store percentage score
-            this.category = category; // Store which category it belongs to
+            this.name = name;
+            this.earnedPoints = score;
+            this.totalPoints = 100.0;
+            this.category = category;
+        }
+        
+        /**
+         * Calculate percentage from earned/total points
+         * Allows for extra credit (>100%)
+         */
+        public double getPercentage() {
+            if (totalPoints == 0) return 0.0;  // Prevent division by zero
+            return (earnedPoints / totalPoints) * 100.0;
+        }
+        
+        /**
+         * Check if this assignment has extra credit
+         */
+        public boolean hasExtraCredit() {
+            return earnedPoints > totalPoints;
+        }
+        
+        /**
+         * Get display string for points
+         */
+        public String getPointsDisplay() {
+            return String.format("%.1f/%.1f", earnedPoints, totalPoints);
         }
     }
     // ===== APPLICATION ENTRY POINT =====
@@ -220,14 +308,38 @@ public class CollegeGPATracker {
                 }
                 
                 // Force dark text colors for all UI components to ensure readability
+                // JOptionPane popup dialog buttons
                 UIManager.put("OptionPane.buttonForeground", Color.BLACK);
+                UIManager.put("OptionPane.okButtonText", "OK");
+                UIManager.put("OptionPane.cancelButtonText", "Cancel");
+                UIManager.put("OptionPane.yesButtonText", "Yes");
+                UIManager.put("OptionPane.noButtonText", "No");
+                
+                // All button types
                 UIManager.put("Button.foreground", Color.BLACK);
+                UIManager.put("Button.focus", Color.BLACK);
+                UIManager.put("Button.select", Color.BLACK);
                 UIManager.put("ToggleButton.foreground", Color.BLACK);
+                UIManager.put("ToggleButton.focus", Color.BLACK);
+                
+                // JOptionPane content
                 UIManager.put("OptionPane.messageForeground", Color.BLACK);
+                UIManager.put("OptionPane.foreground", Color.BLACK);
+                
+                // Other UI components
                 UIManager.put("Label.foreground", Color.BLACK);
                 UIManager.put("TextField.foreground", Color.BLACK);
                 UIManager.put("ComboBox.foreground", Color.BLACK);
-                debugWriter.println("✓ Dark text colors set for all UI components");
+                UIManager.put("List.foreground", Color.BLACK);
+                UIManager.put("Tree.textForeground", Color.BLACK);
+                UIManager.put("Table.foreground", Color.BLACK);
+                
+                // Panel and background settings for better contrast
+                UIManager.put("Panel.background", Color.WHITE);
+                UIManager.put("OptionPane.background", Color.WHITE);
+                UIManager.put("Button.background", Color.LIGHT_GRAY);
+                
+                debugWriter.println("✓ Dark text colors set for all UI components including JOptionPane dialogs");
                 
                 // Set system properties for better EXE behavior
                 System.setProperty("java.awt.headless", "false");
@@ -401,7 +513,7 @@ public class CollegeGPATracker {
         usernameOrEmail.setAlignmentX(Component.CENTER_ALIGNMENT);
         usernameOrEmail.setMaximumSize(new Dimension(370, 56));
         usernameOrEmail.setPreferredSize(new Dimension(370, 56));
-        usernameOrEmail.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        usernameOrEmail.setFont(BODY_LARGE);
         usernameOrEmail.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(new Color(220, 220, 220), 1, true),
             BorderFactory.createEmptyBorder(12, 16, 12, 16)
@@ -576,20 +688,20 @@ public class CollegeGPATracker {
                             "Account Temporarily Locked",
                             JOptionPane.WARNING_MESSAGE);
                     } else {
-                        JOptionPane.showMessageDialog(frame, "Invalid credentials.");
+                        showCustomMessageDialog(frame, "Invalid credentials.", "Login Failed");
                     }
                 }
             } catch (Exception e) {
                 System.err.println("Login error: " + e.getMessage());
                 SecurityManager.logSecurityEvent("Login error", id, false);
-                JOptionPane.showMessageDialog(frame, "Login failed due to system error.");
+                showCustomMessageDialog(frame, "Login failed due to system error.", "System Error");
             }
         });
 
         // SIGNUP - Enhanced with security validation
         signupBtn.addActionListener(_ -> {
             try {
-                String newUser = JOptionPane.showInputDialog(frame, "Choose a username:");
+                String newUser = showCustomInputDialog(frame, "Choose a username:", "Create Account", "");
                 if (newUser == null || newUser.trim().isEmpty()) return;
                 
                 // Validate username format
@@ -601,7 +713,7 @@ public class CollegeGPATracker {
                     return;
                 }
                 
-                String email = JOptionPane.showInputDialog(frame, "Enter email:");
+                String email = showCustomInputDialog(frame, "Enter email:", "Email Address", "");
                 if (email == null || email.trim().isEmpty()) return;
                 
                 // Validate email format
@@ -665,7 +777,7 @@ public class CollegeGPATracker {
         forgotPasswordLink.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                String email = JOptionPane.showInputDialog(frame, "Enter your account email:");
+                String email = showCustomInputDialog(frame, "Enter your account email:", "Password Reset", "");
                 if (email == null || email.trim().isEmpty()) return;
                 String user = findUserByEmail(email);
                 if (user == null) {
@@ -699,7 +811,7 @@ public class CollegeGPATracker {
                     JOptionPane.showMessageDialog(frame, "A reset code was sent to " + email + ".\nCheck your inbox (and spam).\n\nYou will now be prompted to enter the code.");
 
                     // Immediately prompt user to enter the code they received by email
-                    String provided = JOptionPane.showInputDialog(frame, "Enter the 6-digit reset code from your email:");
+                    String provided = showCustomInputDialog(frame, "Enter the 6-digit reset code from your email:", "Reset Code", "");
                     if (provided == null || provided.trim().isEmpty()) {
                         JOptionPane.showMessageDialog(frame, "No code entered. You can enter the code later.");
                         return;
@@ -988,7 +1100,7 @@ public class CollegeGPATracker {
         logoLabel.setFont(new Font("SansSerif", Font.PLAIN, 32));
         
         JLabel titleLabel = new JLabel("GradeRise Dashboard");
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
+        titleLabel.setFont(HEADING_MEDIUM);
         titleLabel.setForeground(Color.WHITE);
         
         leftPanel.add(logoLabel);
@@ -1001,7 +1113,7 @@ public class CollegeGPATracker {
                                 "💪 Keep Going";
         
         overallGpaLabel = new JLabel("Overall GPA: " + String.format("%.2f", gpa) + " " + achievementText);
-        overallGpaLabel.setFont(new Font("SansSerif", Font.BOLD, 24));
+        overallGpaLabel.setFont(HEADING_LARGE);
         overallGpaLabel.setForeground(Color.WHITE);
         overallGpaLabel.setHorizontalAlignment(SwingConstants.CENTER);
         
@@ -1086,25 +1198,38 @@ public class CollegeGPATracker {
                 Graphics2D g2d = (Graphics2D) g.create();
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
-                // Card shadow
-                g2d.setColor(new Color(0, 0, 0, 20));
-                g2d.fillRoundRect(2, 4, getWidth() - 4, getHeight() - 6, 12, 12);
+                // Multi-layer shadow for enhanced depth
+                for (int i = 0; i < 5; i++) {
+                    int alpha = Math.max(5, 25 - (i * 4));
+                    g2d.setColor(new Color(0, 0, 0, alpha));
+                    g2d.fillRoundRect(i + 1, i + 3, getWidth() - (i * 2) - 2, 
+                                    getHeight() - (i * 2) - 3, 16 - i, 16 - i);
+                }
                 
-                // Card background
-                g2d.setColor(CARD_LIGHT);
-                g2d.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 4, 12, 12);
+                // Card background with subtle gradient
+                GradientPaint cardGradient = new GradientPaint(
+                    0, 0, CARD_LIGHT,
+                    0, getHeight(), new Color(0xFEFEFE)
+                );
+                g2d.setPaint(cardGradient);
+                g2d.fillRoundRect(0, 0, getWidth() - 2, getHeight() - 4, 16, 16);
+                
+                // Subtle inner highlight
+                g2d.setColor(new Color(255, 255, 255, 60));
+                g2d.drawRoundRect(1, 1, getWidth() - 4, getHeight() - 6, 15, 15);
                 
                 g2d.dispose();
             }
         };
         
         card.setOpaque(false);
-        card.setBorder(new EmptyBorder(15, 15, 15, 15));
+        card.setBorder(new EmptyBorder(20, 20, 20, 20));
         
-        // Title with gradient accent
+        // Enhanced title with better typography
         JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+        titleLabel.setFont(BODY_BOLD);
         titleLabel.setForeground(TEXT_DARK);
+        titleLabel.setBorder(new EmptyBorder(0, 0, 12, 0));
         
         card.add(titleLabel, BorderLayout.NORTH);
         card.add(content, BorderLayout.CENTER);
@@ -1255,14 +1380,10 @@ public class CollegeGPATracker {
         JScrollPane classScroll = new JScrollPane(classList);
         classScroll.setPreferredSize(new Dimension(260, 0));
 
-        JButton addClassBtn = createGradeRiseButton("➕ Add Class", SUCCESS_EMERALD, true);
-        addClassBtn.setForeground(Color.BLACK);
-        JButton deleteClassBtn = createGradeRiseButton("🗑️ Delete Class", DANGER_ROSE, false);
-        deleteClassBtn.setForeground(Color.BLACK);
-        JButton toggleStatusBtn = createGradeRiseButton("📚 Toggle Status", INFO_BRAND, true);
-        toggleStatusBtn.setForeground(Color.BLACK);
-        JButton removeSemesterBtn = createGradeRiseButton("⚠️ Remove Semester", DANGER_ROSE, false);
-        removeSemesterBtn.setForeground(Color.BLACK);
+        JButton addClassBtn = createFloatingButton("➕ Add Class", SUCCESS_EMERALD);
+        JButton deleteClassBtn = createFloatingButton("🗑️ Delete Class", DANGER_ROSE);
+        JButton toggleStatusBtn = createFloatingButton("📚 Toggle Status", INFO_BRAND);
+        JButton removeSemesterBtn = createFloatingButton("⚠️ Remove Semester", new Color(0xDC2626));
         removeSemesterBtn.setToolTipText("Delete this entire semester");
         
         JPanel leftTop = new JPanel(new GridLayout(2, 2, 5, 5));
@@ -1302,16 +1423,11 @@ public class CollegeGPATracker {
         classTitle.setFont(new Font("SansSerif", Font.BOLD, 18));
         classTitle.setBorder(BorderFactory.createTitledBorder(""));
 
-        JButton addAssignmentBtn = createGradeRiseButton("➕ Add Assignment", SUCCESS_EMERALD, true);
-        addAssignmentBtn.setForeground(Color.BLACK);
-        JButton deleteAssignmentBtn = createGradeRiseButton("🗑️ Delete Assignment", DANGER_ROSE, false);
-        deleteAssignmentBtn.setForeground(Color.BLACK);
-        JButton weightsBtn = createGradeRiseButton("⚖️ Weights", INFO_BRAND, true);
-        weightsBtn.setForeground(Color.BLACK);
-        JButton creditsBtn = createGradeRiseButton("💎 Credits", WARNING_AMBER, false);
-        creditsBtn.setForeground(Color.BLACK);
-        JButton letterGradeBtn = createGradeRiseButton("🎓 Letter Grade", new Color(0x9333EA), false);
-        letterGradeBtn.setForeground(Color.BLACK);
+        JButton addAssignmentBtn = createFloatingButton("➕ Add Assignment", SUCCESS_EMERALD);
+        JButton deleteAssignmentBtn = createFloatingButton("🗑️ Delete Assignment", DANGER_ROSE);
+        JButton weightsBtn = createFloatingButton("⚖️ Weights", INFO_BRAND);
+        JButton creditsBtn = createFloatingButton("💎 Credits", WARNING_AMBER);
+        JButton letterGradeBtn = createFloatingButton("🎓 Letter Grade", new Color(0x9333EA));
         letterGradeBtn.setToolTipText("Set letter grade for past classes (A, B, C, D, F)");
         
 
@@ -1345,6 +1461,22 @@ public class CollegeGPATracker {
         JLabel classGpaLabel = new JLabel("Class GPA: —", SwingConstants.LEFT);
         classGpaLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
 
+        // Category breakdown panel
+        JPanel categoryBreakdownPanel = new JPanel();
+        categoryBreakdownPanel.setLayout(new BoxLayout(categoryBreakdownPanel, BoxLayout.Y_AXIS));
+        categoryBreakdownPanel.setBackground(Color.WHITE);
+        categoryBreakdownPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.LIGHT_GRAY), 
+            "Category Breakdown", 
+            0, 0, 
+            new Font("SansSerif", Font.BOLD, 12), 
+            Color.BLACK));
+        
+        JLabel gradingModeLabel = new JLabel("Mode: —");
+        gradingModeLabel.setFont(new Font("SansSerif", Font.ITALIC, 11));
+        gradingModeLabel.setForeground(Color.GRAY);
+        categoryBreakdownPanel.add(gradingModeLabel);
+
         JPanel centerTop = new JPanel(new BorderLayout());
         JPanel rightControls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
         rightControls.add(showActiveBtn);
@@ -1377,14 +1509,18 @@ public class CollegeGPATracker {
 
         // Modern card containers with rounded corners and shadows
         JPanel weightsCard = createAnalyticsCard("📊 Grade Breakdown", piePanel);
+        JPanel categoriesCard = createAnalyticsCard("📋 Categories", categoryBreakdownPanel);
         JPanel trendCard = createAnalyticsCard("📈 Performance Trend", trendPanel);
         JPanel badgesCard = createAnalyticsCard("🏆 Achievements", badgePanel);
 
         weightsCard.setMaximumSize(new Dimension(340, 260));
+        categoriesCard.setMaximumSize(new Dimension(340, 180));
         trendCard.setMaximumSize(new Dimension(340, 200));
         badgesCard.setMaximumSize(new Dimension(340, 140));
 
         rightDash.add(weightsCard);
+        rightDash.add(Box.createVerticalStrut(12));
+        rightDash.add(categoriesCard);
         rightDash.add(Box.createVerticalStrut(12));
         rightDash.add(trendCard);
         rightDash.add(Box.createVerticalStrut(12));
@@ -1424,7 +1560,7 @@ public class CollegeGPATracker {
                 return;
             }
             int credits = 3;
-            String creditsStr = JOptionPane.showInputDialog(root, "Credit hours (e.g., 3):", "3");
+            String creditsStr = showCustomInputDialog(root, "Credit hours (e.g., 3):", "Set Credits", "3");
             try {
                 if (creditsStr != null && !creditsStr.trim().isEmpty()) {
                     credits = Math.max(0, Integer.parseInt(creditsStr.trim()));
@@ -1462,7 +1598,7 @@ public class CollegeGPATracker {
         toggleStatusBtn.addActionListener(_ -> {
             String selectedClass = classList.getSelectedValue();
             if (selectedClass == null) {
-                JOptionPane.showMessageDialog(root, "Please select a class to toggle its status.");
+                showCustomMessageDialog(root, "Please select a class to toggle its status.", "No Class Selected");
                 return;
             }
             
@@ -1525,12 +1661,18 @@ public class CollegeGPATracker {
             ClassData cd = userData.get(currentUser).get(semesterName).get(selectedClass);
             for (String cat : cd.assignments.keySet()) {
                 for (Assignment a : cd.assignments.get(cat)) {
-                    model.addRow(new Object[]{a.name, a.category, a.score});
+                    // Display as "earned/total (percentage%)" format
+                    String displayScore = String.format("%.1f/%.1f (%.1f%%)", 
+                        a.earnedPoints, a.totalPoints, a.getPercentage());
+                    model.addRow(new Object[]{a.name, a.category, displayScore});
                 }
             }
             double classPercent = calculateClassPercent(cd);
             double classGPA = percentToGPA(classPercent);
             classGpaLabel.setText("Class GPA: " + String.format("%.2f", classGPA));
+
+            // Update category breakdown display
+            updateCategoryBreakdown(cd, categoryBreakdownPanel, gradingModeLabel);
 
             // update charts
             updatePieChartWithAllCategories(cd, piePanel);
@@ -1558,8 +1700,8 @@ public class CollegeGPATracker {
             assignmentPanel.add(assignmentLabel, BorderLayout.NORTH);
             assignmentPanel.add(assignmentField, BorderLayout.CENTER);
             
-            int assignmentResult = JOptionPane.showConfirmDialog(root, assignmentPanel, "Add Assignment", 
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            int assignmentResult = showCustomComplexDialog(root, assignmentPanel, "Add Assignment") ? 
+                JOptionPane.OK_OPTION : JOptionPane.CANCEL_OPTION;
             
             String aName = null;
             if (assignmentResult == JOptionPane.OK_OPTION) {
@@ -1573,36 +1715,97 @@ public class CollegeGPATracker {
             categoryList.add("+ Add New Category");
             
             String[] categories = categoryList.toArray(new String[0]);
-            String category = (String) JOptionPane.showInputDialog(
-                    root, "Select category:", "Assignment Type",
-                    JOptionPane.PLAIN_MESSAGE, null, categories, categories[0]);
+            // Use first category as default, or show custom category creation
+            String category = categories.length > 0 ? categories[0] : null;
+            if (categories.length > 1) {
+                // If multiple categories exist, let user pick
+                category = showCustomInputDialog(root, "Select category (or type new name):\nExisting: " + 
+                    String.join(", ", java.util.Arrays.copyOf(categories, categories.length-1)), 
+                    "Assignment Category", categories[0]);
+            }
             if (category == null) return;
             
             // Handle new category creation
             if ("+ Add New Category".equals(category)) {
-                category = JOptionPane.showInputDialog(root, "Enter new category name:");
+                category = showCustomInputDialog(root, "Enter new category name:", "New Category", "");
                 if (category == null || category.trim().isEmpty()) return;
                 category = category.trim();
                 
                 // Add new category with 0% weight initially
                 if (!cd.weights.containsKey(category)) {
-                    cd.weights.put(category, 0);
+                    cd.weights.put(category, 0.0);
                     cd.assignments.put(category, new java.util.ArrayList<>());
-                    JOptionPane.showMessageDialog(root, 
+                    showCustomMessageDialog(root, 
                         "New category '" + category + "' added with 0% weight.\n" +
                         "Don't forget to adjust weights using the Weights button!", 
-                        "Category Added", JOptionPane.INFORMATION_MESSAGE);
+                        "Category Added");
                 }
             }
 
-            String sText = JOptionPane.showInputDialog(root, "Score (%):");
-            if (sText == null || sText.trim().isEmpty()) return;
-
+            // Create custom points input dialog
+            JPanel pointsPanel = new JPanel(new GridLayout(3, 2, 5, 5));
+            pointsPanel.setBackground(Color.WHITE);
+            
+            JLabel earnedLabel = new JLabel("Points Earned:");
+            earnedLabel.setForeground(Color.BLACK);
+            JTextField earnedField = new JTextField();
+            earnedField.setForeground(Color.BLACK);
+            earnedField.setBackground(Color.WHITE);
+            
+            JLabel totalLabel = new JLabel("Total Points:");
+            totalLabel.setForeground(Color.BLACK);
+            JTextField totalField = new JTextField();
+            totalField.setForeground(Color.BLACK);
+            totalField.setBackground(Color.WHITE);
+            
+            JLabel exampleLabel = new JLabel("Example: 102 earned / 100 total = 102% (extra credit)");
+            exampleLabel.setForeground(Color.GRAY);
+            exampleLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
+            
+            pointsPanel.add(earnedLabel);
+            pointsPanel.add(earnedField);
+            pointsPanel.add(totalLabel);
+            pointsPanel.add(totalField);
+            pointsPanel.add(new JLabel()); // Spacer
+            pointsPanel.add(exampleLabel);
+            
+            boolean pointsResult = showCustomComplexDialog(root, pointsPanel, "Enter Assignment Points");
+            
+            if (!pointsResult) return;
+            
             try {
-                double score = Double.parseDouble(sText);
-                Assignment a = new Assignment(aName, score, category);
+                double earnedPoints = Double.parseDouble(earnedField.getText().trim());
+                double totalPoints = Double.parseDouble(totalField.getText().trim());
+                
+                // Validation
+                if (totalPoints <= 0) {
+                    showCustomMessageDialog(root, "Total points must be greater than 0!", 
+                        "Invalid Input");
+                    return;
+                }
+                
+                // Validate points before creating assignment
+                if (Double.isNaN(earnedPoints) || Double.isNaN(totalPoints)) {
+                    showCustomMessageDialog(root, "Please enter valid numbers for points.", "Invalid Input");
+                    return;
+                }
+                
+                Assignment a = new Assignment(aName, earnedPoints, totalPoints, category);
                 cd.assignments.get(category).add(a);
-                ((DefaultTableModel)table.getModel()).addRow(new Object[]{aName, category, score});
+                
+                // Show in table with points format and percentage
+                String displayScore = String.format("%.1f/%.1f (%.1f%%)", 
+                    earnedPoints, totalPoints, a.getPercentage());
+                ((DefaultTableModel)table.getModel()).addRow(new Object[]{aName, category, displayScore});
+                
+                // Show extra credit warning if applicable
+                if (a.hasExtraCredit()) {
+                    showCustomMessageDialog(root, 
+                        "Extra credit detected! " + a.getPointsDisplay() + " = " + 
+                        String.format("%.1f%%", a.getPercentage()),
+                        "Extra Credit");
+                }
+                
                 pushHistory(cd);
                 saveAllUserData();
 
@@ -1612,6 +1815,7 @@ public class CollegeGPATracker {
 
                 // refresh visuals
                 classList.repaint();
+                updateCategoryBreakdown(cd, categoryBreakdownPanel, gradingModeLabel);
                 updatePieChartWithAllCategories(cd, piePanel);
                 trendPanel.setData(cd.historyPercent);
                 badgePanel.setBadges(percentToGPA(classPercent) >= 3.8, isComeback(cd));
@@ -1860,7 +2064,7 @@ public class CollegeGPATracker {
                         Object[] row = {
                             className,
                             assignment.name,
-                            assignment.score + "%",
+                            String.format("%.1f%%", assignment.getPercentage()),
                             classData.weights.get(category) + "%"
                         };
                         model.addRow(row);
@@ -1916,7 +2120,7 @@ public class CollegeGPATracker {
 
         // change username
         changeUsernameBtn.addActionListener(_ -> {
-            String newUsername = JOptionPane.showInputDialog(parent, "Enter new username:");
+            String newUsername = showCustomInputDialog(parent, "Enter new username:", "Change Username", "");
             if (newUsername == null || newUsername.trim().isEmpty()) return;
             if (users.containsKey(newUsername)) {
                 JOptionPane.showMessageDialog(parent, "That username is taken.");
@@ -1935,7 +2139,7 @@ public class CollegeGPATracker {
         unlinkGoogleBtn.addActionListener(_ -> {
             String[] info = users.get(currentUser);
             if (info[0].isEmpty()) {
-                String newPass = JOptionPane.showInputDialog(parent, "Set a new password:");
+                String newPass = showCustomInputDialog(parent, "Set a new password:", "New Password", "");
                 if (newPass != null && !newPass.trim().isEmpty()) {
                     info[0] = newPass;
                     saveUsers();
@@ -1949,78 +2153,120 @@ public class CollegeGPATracker {
         JOptionPane.showMessageDialog(parent, panel, "Your Profile", JOptionPane.PLAIN_MESSAGE);
     }
 
-    // ===== Utilities & GPA =====
-    private static JButton createGradeRiseButton(String text, Color bgColor, boolean isGradient) {
+    // ===== MODERN UI COMPONENT FACTORIES =====
+    
+    /**
+     * Creates a floating action button with enhanced shadows and hover effects
+     */
+    private static JButton createFloatingButton(String text, Color color) {
         JButton button = new JButton(text) {
-            private boolean isHovered = false;
-            
             @Override
             protected void paintComponent(Graphics g) {
                 Graphics2D g2d = (Graphics2D) g.create();
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
-                // Create gradient or solid background
-                if (isGradient || bgColor == INFO_BRAND) {
-                    GradientPaint gradient = new GradientPaint(
-                        0, 0, GRADIENT_START,
-                        getWidth(), getHeight(), GRADIENT_END
-                    );
-                    g2d.setPaint(gradient);
-                } else {
-                    g2d.setColor(isHovered ? bgColor.brighter() : bgColor);
+                // Get hover state from client properties
+                Boolean hoveredObj = (Boolean) getClientProperty("isHovered");
+                boolean isCurrentlyHovered = hoveredObj != null && hoveredObj;
+                
+                Float shadowIntensityObj = (Float) getClientProperty("shadowIntensity");
+                float currentShadowIntensity = shadowIntensityObj != null ? shadowIntensityObj : 0.3f;
+                
+                // Enhanced shadow system
+                int shadowSize = isCurrentlyHovered ? 8 : 4;
+                for (int i = 0; i < shadowSize; i++) {
+                    int alpha = (int) (currentShadowIntensity * (shadowSize - i) * 255 / shadowSize);
+                    g2d.setColor(new Color(0, 0, 0, alpha));
+                    g2d.fillRoundRect(i + 2, i + 4, getWidth() - (i * 2) - 4, 
+                                    getHeight() - (i * 2) - 6, getHeight(), getHeight());
                 }
                 
-                // Draw rounded rectangle
-                g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                // Button background with gradient
+                Color startColor = isCurrentlyHovered ? color.brighter() : color;
+                Color endColor = isCurrentlyHovered ? color : color.darker();
+                GradientPaint gradient = new GradientPaint(
+                    0, 0, startColor,
+                    0, getHeight(), endColor
+                );
+                g2d.setPaint(gradient);
+                g2d.fillRoundRect(0, 0, getWidth(), getHeight() - 2, getHeight(), getHeight());
                 
-                // Add glow effect on hover
-                if (isHovered) {
-                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.3f));
-                    g2d.setColor(Color.WHITE);
-                    g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 8, 8);
+                // Highlight effect
+                if (isCurrentlyHovered) {
+                    g2d.setColor(new Color(255, 255, 255, 30));
+                    g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() / 2, getHeight(), getHeight());
                 }
                 
+                super.paintComponent(g2d);
                 g2d.dispose();
-                super.paintComponent(g);
-            }
-            
-            @Override
-            protected void paintBorder(Graphics g) {
-                // No border painting - custom shape
             }
         };
         
-        button.setFont(new Font("SansSerif", Font.BOLD, 13));
-        button.setForeground(Color.BLACK);
+        button.setFont(BODY_BOLD);
+        button.setForeground(Color.WHITE);
         button.setContentAreaFilled(false);
         button.setBorderPainted(false);
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setBorder(new EmptyBorder(10, 18, 10, 18));
+        button.setBorder(new EmptyBorder(12, 20, 12, 20));
         
-        // Enhanced hover effects with animation
+        // Smooth hover animation with safe implementation
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                ((JButton) e.getSource()).putClientProperty("isHovered", true);
-                e.getComponent().repaint();
+                // Stop any existing animation
+                javax.swing.Timer existingTimer = (javax.swing.Timer) button.getClientProperty("hoverTimer");
+                if (existingTimer != null && existingTimer.isRunning()) {
+                    existingTimer.stop();
+                }
                 
-                // Add glow shadow effect
-                button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createEmptyBorder(2, 2, 4, 2),
-                    new EmptyBorder(8, 16, 8, 16)
-                ));
+                // Animate shadow intensity increase
+                javax.swing.Timer hoverTimer = new javax.swing.Timer(20, evt -> {
+                    Float currentVal = (Float) button.getClientProperty("shadowIntensity");
+                    float current = currentVal != null ? currentVal : 0.3f;
+                    current = Math.min(0.6f, current + 0.05f);
+                    button.putClientProperty("shadowIntensity", current);
+                    button.putClientProperty("isHovered", true);
+                    button.repaint();
+                    
+                    if (current >= 0.6f) {
+                        ((javax.swing.Timer) evt.getSource()).stop();
+                    }
+                });
+                button.putClientProperty("hoverTimer", hoverTimer);
+                hoverTimer.start();
             }
             
             @Override
             public void mouseExited(MouseEvent e) {
-                ((JButton) e.getSource()).putClientProperty("isHovered", false);
-                e.getComponent().repaint();
+                // Stop any existing animation
+                javax.swing.Timer existingTimer = (javax.swing.Timer) button.getClientProperty("hoverTimer");
+                if (existingTimer != null && existingTimer.isRunning()) {
+                    existingTimer.stop();
+                }
+                
+                // Animate shadow intensity decrease
+                javax.swing.Timer hoverTimer = new javax.swing.Timer(20, evt -> {
+                    Float currentVal = (Float) button.getClientProperty("shadowIntensity");
+                    float current = currentVal != null ? currentVal : 0.6f;
+                    current = Math.max(0.3f, current - 0.05f);
+                    button.putClientProperty("shadowIntensity", current);
+                    
+                    if (current <= 0.3f) {
+                        button.putClientProperty("isHovered", false);
+                        ((javax.swing.Timer) evt.getSource()).stop();
+                    }
+                    button.repaint();
+                });
+                button.putClientProperty("hoverTimer", hoverTimer);
+                hoverTimer.start();
             }
         });
         
         return button;
     }
+    
+    // ===== Utilities & GPA =====
     
     private static void styleToggleButton(JToggleButton button, Color bgColor, boolean isActive) {
         button.setFont(new Font("SansSerif", Font.BOLD, 12));
@@ -2223,7 +2469,15 @@ public class CollegeGPATracker {
     }
 
     private static double avgFor(ClassData cd, String cat) {
-        return cd.assignments.get(cat).stream().mapToDouble(a -> a.score).average().orElse(0);
+        if (cd == null || cd.assignments == null || cat == null) return 0.0;
+        List<Assignment> categoryAssignments = cd.assignments.get(cat);
+        if (categoryAssignments == null || categoryAssignments.isEmpty()) {
+            return 0.0;
+        }
+        return categoryAssignments.stream()
+                .filter(Objects::nonNull)
+                .mapToDouble(Assignment::getPercentage)
+                .average().orElse(0);
     }
 
     private static Color barColorFor(double percent) {
@@ -2234,23 +2488,59 @@ public class CollegeGPATracker {
 
     // ===== GPA/Percent CALCULATIONS =====
     private static double calculateClassPercent(ClassData cd) {
-        if (cd == null) return 0.0;
+        if (cd == null || cd.assignments == null) return 0.0;
         
         // If this class has a letter grade set (for past classes), use that
         if (cd.letterGrade != null && !cd.letterGrade.isEmpty()) {
             return letterGradeToPercentage(cd.letterGrade);
         }
         
-        // Otherwise, calculate from assignments as before
+        // Calculate based on selected grading mode
+        if (cd.gradingMode == ClassData.GradingMode.TOTAL_POINTS) {
+            return calculateTotalPointsPercent(cd);
+        } else {
+            return calculateWeightedPercent(cd);
+        }
+    }
+    
+    /**
+     * Calculate percentage using weighted category averages
+     */
+    private static double calculateWeightedPercent(ClassData cd) {
         double weightedTotal = 0;
         double weightSum = 0;
+        
         for (String cat : cd.assignments.keySet()) {
-            double avg = avgFor(cd, cat);
-            int weight = cd.weights.getOrDefault(cat, 0);
-            weightedTotal += avg * (weight / 100.0);
-            weightSum += weight;
+            List<Assignment> assignments = cd.assignments.get(cat);
+            if (assignments != null && !assignments.isEmpty()) {
+                double avg = avgFor(cd, cat);
+                double weight = cd.weights.getOrDefault(cat, 0.0);
+                weightedTotal += avg * (weight / 100.0);
+                weightSum += weight;
+            }
         }
         return (weightSum > 0) ? weightedTotal : 0.0;
+    }
+    
+    /**
+     * Calculate percentage using total points method (sum earned / sum possible)
+     */
+    private static double calculateTotalPointsPercent(ClassData cd) {
+        double totalEarned = 0;
+        double totalPossible = 0;
+        
+        for (String cat : cd.assignments.keySet()) {
+            List<Assignment> assignments = cd.assignments.get(cat);
+            if (assignments != null) {
+                for (Assignment assignment : assignments) {
+                    totalEarned += assignment.earnedPoints;
+                    totalPossible += assignment.totalPoints;
+                }
+            }
+        }
+        
+        if (totalPossible == 0) return 0.0;
+        return (totalEarned / totalPossible) * 100.0;
     }
 
     private static double calculateClassGPA(ClassData cd) {
@@ -2403,6 +2693,46 @@ public class CollegeGPATracker {
     }
     
     /**
+     * Shows a custom message dialog with guaranteed dark text buttons
+     */
+    private static void showCustomMessageDialog(Component parent, String message, String title) {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(parent), title, true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(400, 180);
+        dialog.setLocationRelativeTo(parent);
+        
+        // Main panel with white background
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Message label with dark text
+        JLabel messageLabel = new JLabel("<html><body style='width: 300px'>" + message + "</body></html>");
+        messageLabel.setForeground(Color.BLACK);
+        messageLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        
+        // OK button with guaranteed dark text
+        JButton okButton = new JButton("OK");
+        okButton.setForeground(Color.BLACK);
+        okButton.setBackground(Color.LIGHT_GRAY);
+        okButton.setFont(new Font("SansSerif", Font.BOLD, 12));
+        okButton.setFocusPainted(false);
+        okButton.addActionListener(e -> dialog.dispose());
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.add(okButton);
+        
+        mainPanel.add(messageLabel, BorderLayout.CENTER);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.add(mainPanel);
+        dialog.setVisible(true);
+    }
+
+
+
+    /**
      * Shows a custom complex dialog with guaranteed dark text buttons
      */
     private static boolean showCustomComplexDialog(Component parent, JPanel content, String title) {
@@ -2424,9 +2754,9 @@ public class CollegeGPATracker {
         buttonPanel.setBackground(Color.WHITE);
         buttonPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
         
-        // Modern styled OK and Cancel buttons
+        // Modern styled Save and Cancel buttons with black text
         JButton okButton = new JButton("Save");
-        okButton.setForeground(Color.WHITE);
+        okButton.setForeground(Color.BLACK);
         okButton.setBackground(new Color(0x3182CE));
         okButton.setFont(new Font("SansSerif", Font.BOLD, 13));
         okButton.setFocusPainted(false);
@@ -2434,7 +2764,7 @@ public class CollegeGPATracker {
         okButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
         
         JButton cancelButton = new JButton("Cancel");
-        cancelButton.setForeground(new Color(0x4A5568));
+        cancelButton.setForeground(Color.BLACK);
         cancelButton.setBackground(new Color(0xF7FAFC));
         cancelButton.setFont(new Font("SansSerif", Font.BOLD, 13));
         cancelButton.setFocusPainted(false);
@@ -2550,6 +2880,8 @@ public class CollegeGPATracker {
         return result[0];
     }
 
+
+    
     // ===== SAVE/LOAD (JSON with Gson) =====
     private static void ensureDataDir() {
         try {
@@ -2687,6 +3019,7 @@ public class CollegeGPATracker {
 
     // ===== Custom Renderers & Panels =====
     static class ClassRenderer extends JPanel implements ListCellRenderer<String> {
+        private static final long serialVersionUID = 1L;
         private final JLabel name = new JLabel();
         private final JProgressBar bar = new JProgressBar(0, 100);
         private final String semesterName;
@@ -2777,7 +3110,8 @@ public class CollegeGPATracker {
     }
 
     static class TrendPanel extends JPanel {
-        List<Double> data = new ArrayList<>();
+        private static final long serialVersionUID = 1L;
+        private transient List<Double> data = new ArrayList<>();
         void setData(List<Double> d){ data = new ArrayList<>(d); repaint(); }
         @Override public Dimension getPreferredSize(){ return new Dimension(320,120); }
         @Override protected void paintComponent(Graphics g){
@@ -2997,6 +3331,7 @@ public class CollegeGPATracker {
 
     // Simple placeholder-supporting text field
     static class PlaceholderTextField extends JTextField {
+        private static final long serialVersionUID = 1L;
         private final String placeholder;
         PlaceholderTextField(String placeholder) { super(); this.placeholder = placeholder; }
         @Override protected void paintComponent(Graphics g) {
@@ -3018,6 +3353,7 @@ public class CollegeGPATracker {
     }
 
     static class PlaceholderPasswordField extends JPasswordField {
+        private static final long serialVersionUID = 1L;
         private final String placeholder;
         PlaceholderPasswordField(String placeholder) { super(); this.placeholder = placeholder; }
         @Override protected void paintComponent(Graphics g) {
@@ -3157,36 +3493,12 @@ public class CollegeGPATracker {
      * Show Grade Analytics Dialog with predictions and statistics
      */
     
-    /**
-     * Show Grade Charts Dialog with visual analytics
-     */
-    
-    /**
-     * Show What-If Scenarios Dialog for grade planning
-     */
-    
-    /**
-     * Show Export Dialog for generating reports
-     */
-    
-
-    
-    /**
-     * Convert ClassData to Course object for analytics
-     */
-    
-    /**
-     * Helper method to create external Assignment and add to course
-     * (avoids name collision with internal Assignment class)
-     */
-    
-    /**
-     * Create Predictions Panel for Analytics
-     */
-    
-    /**
-     * Create Statistics Panel for Analytics
-     */
+    // Future enhancement placeholders for advanced analytics features
+    // - Grade charts dialog with visual analytics
+    // - What-if scenarios dialog for grade planning 
+    // - Export dialog for generating reports
+    // - Course analytics conversion methods
+    // - Statistics and predictions panels
     
     /**
      * Create Trends Panel for Analytics
@@ -3245,19 +3557,46 @@ public class CollegeGPATracker {
      * Show custom weights dialog for managing category weights
      */
     private static void showCustomWeightsDialog(JPanel parent, ClassData cd, String semesterName) {
-        JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(parent), "Customize Weights", true);
-        dialog.setSize(500, 400);
+        JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(parent), "Grade Calculation Settings", true);
+        dialog.setSize(600, 500);
         dialog.setLocationRelativeTo(parent);
         
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        
+        // Grading mode selection panel
+        JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        modePanel.setBackground(Color.WHITE);
+        modePanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Grading Mode", 
+            0, 0, 
+            new Font("SansSerif", Font.BOLD, 14), 
+            Color.BLACK));
+        
+        ButtonGroup modeGroup = new ButtonGroup();
+        JRadioButton weightedMode = new JRadioButton("Weighted (Category averages × weights)", 
+            cd.gradingMode == ClassData.GradingMode.WEIGHTED);
+        JRadioButton totalPointsMode = new JRadioButton("Total Points (Sum earned ÷ sum possible)", 
+            cd.gradingMode == ClassData.GradingMode.TOTAL_POINTS);
+        
+        weightedMode.setForeground(Color.BLACK);
+        weightedMode.setBackground(Color.WHITE);
+        totalPointsMode.setForeground(Color.BLACK);
+        totalPointsMode.setBackground(Color.WHITE);
+        
+        modeGroup.add(weightedMode);
+        modeGroup.add(totalPointsMode);
+        modePanel.add(weightedMode);
+        modePanel.add(totalPointsMode);
         
         // Category weights panel
         JPanel weightsPanel = new JPanel(new GridBagLayout());
         weightsPanel.setBackground(Color.WHITE);
         weightsPanel.setBorder(BorderFactory.createTitledBorder(
             BorderFactory.createLineBorder(Color.GRAY), 
-            "Category Weights", 
+            "Custom Categories & Weights", 
             0, 0, 
             new Font("SansSerif", Font.BOLD, 14), 
             Color.BLACK));
@@ -3265,10 +3604,20 @@ public class CollegeGPATracker {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         
-        Map<String, JTextField> weightFields = new HashMap<>();
-        int row = 0;
+        // Show message if no categories exist
+        if (cd.weights.isEmpty()) {
+            gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 4;
+            JLabel noCategories = new JLabel("No categories added yet. Add your first category below!");
+            noCategories.setForeground(Color.GRAY);
+            noCategories.setFont(new Font("SansSerif", Font.ITALIC, 14));
+            weightsPanel.add(noCategories, gbc);
+            gbc.gridy = 1; gbc.gridwidth = 1;
+        }
         
-        // Add existing categories
+        Map<String, JTextField> weightFields = new HashMap<>();
+        int row = cd.weights.isEmpty() ? 1 : 0;
+        
+        // Add existing categories (all are deletable since no defaults)
         for (String category : cd.weights.keySet()) {
             gbc.gridx = 0; gbc.gridy = row; gbc.anchor = GridBagConstraints.WEST;
             JLabel categoryLabel = new JLabel(category + ":");
@@ -3277,7 +3626,7 @@ public class CollegeGPATracker {
             weightsPanel.add(categoryLabel, gbc);
             
             gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-            JTextField field = new JTextField(cd.weights.get(category).toString(), 10);
+            JTextField field = new JTextField(String.format("%.1f", cd.weights.get(category)), 10);
             field.setForeground(Color.BLACK);
             field.setBackground(Color.WHITE);
             field.setFont(new Font("SansSerif", Font.PLAIN, 14));
@@ -3285,29 +3634,40 @@ public class CollegeGPATracker {
             weightsPanel.add(field, gbc);
             
             gbc.gridx = 2; gbc.fill = GridBagConstraints.NONE;
-            weightsPanel.add(new JLabel("%"), gbc);
+            JLabel percentLabel = new JLabel("%");
+            percentLabel.setForeground(Color.BLACK);
+            weightsPanel.add(percentLabel, gbc);
             
-            // Add delete button for non-default categories
-            if (!Arrays.asList("Homework", "Exam", "Project").contains(category)) {
-                gbc.gridx = 3;
-                JButton deleteBtn = new JButton("✖");
-                deleteBtn.setForeground(Color.BLACK);
-                deleteBtn.setBackground(Color.WHITE);
-                deleteBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
-                deleteBtn.setToolTipText("Delete " + category);
-                deleteBtn.addActionListener(e -> {
-                    if (cd.assignments.get(category).isEmpty() || 
-                        JOptionPane.showConfirmDialog(dialog, 
-                            "Delete category '" + category + "' and all its assignments?", 
-                            "Confirm Delete", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
-                        cd.weights.remove(category);
-                        cd.assignments.remove(category);
-                        dialog.dispose();
-                        showCustomWeightsDialog(parent, cd, semesterName);
-                    }
-                });
-                weightsPanel.add(deleteBtn, gbc);
-            }
+            // Add category average display
+            gbc.gridx = 3;
+            double categoryAvg = cd.getCategoryAverage(category);
+            String avgText = cd.assignments.get(category).isEmpty() ? "No assignments" : 
+                String.format("Avg: %.1f%%", categoryAvg);
+            JLabel avgLabel = new JLabel(avgText);
+            avgLabel.setForeground(Color.GRAY);
+            avgLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
+            weightsPanel.add(avgLabel, gbc);
+            
+            // Add delete button (all categories can be deleted)
+            gbc.gridx = 4;
+            JButton deleteBtn = new JButton("✖");
+            deleteBtn.setForeground(Color.RED);
+            deleteBtn.setBackground(Color.WHITE);
+            deleteBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
+            deleteBtn.setToolTipText("Delete " + category);
+            deleteBtn.addActionListener(e -> {
+                List<Assignment> categoryAssignments = cd.assignments.get(category);
+                if (categoryAssignments == null || categoryAssignments.isEmpty() || 
+                    JOptionPane.showConfirmDialog(dialog, 
+                        "Delete category '" + category + "' and all its " + 
+                        categoryAssignments.size() + " assignments?", 
+                        "Confirm Delete", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+                    cd.removeCategory(category);
+                    dialog.dispose();
+                    showCustomWeightsDialog(parent, cd, semesterName);
+                }
+            });
+            weightsPanel.add(deleteBtn, gbc);
             row++;
         }
         
@@ -3315,60 +3675,116 @@ public class CollegeGPATracker {
         gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 2;
         JButton addCategoryBtn = new JButton("+ Add New Category");
         addCategoryBtn.setForeground(Color.BLACK);
-        addCategoryBtn.setBackground(Color.WHITE);
+        addCategoryBtn.setBackground(new Color(230, 230, 230));
         addCategoryBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
         addCategoryBtn.addActionListener(e -> {
-            String newCategory = JOptionPane.showInputDialog(dialog, "Enter new category name:");
+            String newCategory = showCustomInputDialog(dialog, 
+                "Enter new category name:\n(Examples: Homework, Quizzes, Midterms, Final, Projects, Participation)", 
+                "New Category", "");
             if (newCategory != null && !newCategory.trim().isEmpty()) {
                 newCategory = newCategory.trim();
                 if (!cd.weights.containsKey(newCategory)) {
-                    cd.weights.put(newCategory, 0);
-                    cd.assignments.put(newCategory, new ArrayList<>());
+                    cd.addCategory(newCategory, 0.0);
                     dialog.dispose();
                     showCustomWeightsDialog(parent, cd, semesterName);
                 } else {
-                    JOptionPane.showMessageDialog(dialog, "Category already exists!");
+                    JOptionPane.showMessageDialog(dialog, "Category '" + newCategory + "' already exists!");
                 }
             }
         });
         weightsPanel.add(addCategoryBtn, gbc);
         
+        // Weight validation info
+        gbc.gridx = 0; gbc.gridy = row + 1; gbc.gridwidth = 5;
+        double currentTotal = cd.getTotalWeight();
+        String weightInfo = cd.gradingMode == ClassData.GradingMode.WEIGHTED ? 
+            String.format("Current total: %.1f%% (should equal 100%% for weighted mode)", currentTotal) :
+            "Weights not used in Total Points mode";
+        JLabel weightInfoLabel = new JLabel(weightInfo);
+        weightInfoLabel.setForeground(cd.gradingMode == ClassData.GradingMode.WEIGHTED && 
+            Math.abs(currentTotal - 100.0) > 0.01 ? Color.RED : Color.GRAY);
+        weightInfoLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
+        weightsPanel.add(weightInfoLabel, gbc);
+        
+        // Enable/disable weight fields based on mode
+        ActionListener modeListener = e -> {
+            boolean isWeightedMode = ((JRadioButton) e.getSource()).getText().contains("Weighted");
+            for (JTextField field : weightFields.values()) {
+                field.setEnabled(isWeightedMode);
+            }
+        };
+        weightedMode.addActionListener(modeListener);
+        totalPointsMode.addActionListener(modeListener);
+        
+        // Initially disable weight fields if in total points mode
+        if (cd.gradingMode == ClassData.GradingMode.TOTAL_POINTS) {
+            for (JTextField field : weightFields.values()) {
+                field.setEnabled(false);
+            }
+        }
+        
+        mainPanel.add(modePanel, BorderLayout.NORTH);
         mainPanel.add(weightsPanel, BorderLayout.CENTER);
         
         // Buttons panel
         JPanel buttonPanel = new JPanel(new FlowLayout());
         
-        JButton saveBtn = new JButton("Save Weights");
+        JButton saveBtn = new JButton("Save Settings");
         saveBtn.setForeground(Color.BLACK);
-        saveBtn.setBackground(Color.WHITE);
-        saveBtn.setFont(new Font("SansSerif", Font.BOLD, 12));
+        saveBtn.setBackground(BRAND_PRIMARY);
+        saveBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
         saveBtn.addActionListener(e -> {
             try {
-                int total = 0;
-                Map<String, Integer> newWeights = new HashMap<>();
+                // Update grading mode
+                ClassData.GradingMode newMode = weightedMode.isSelected() ? 
+                    ClassData.GradingMode.WEIGHTED : ClassData.GradingMode.TOTAL_POINTS;
+                cd.gradingMode = newMode;
                 
-                for (String category : weightFields.keySet()) {
-                    int weight = Integer.parseInt(weightFields.get(category).getText());
-                    if (weight < 0) {
-                        JOptionPane.showMessageDialog(dialog, "Weights cannot be negative!");
-                        return;
+                // Update weights (only validate if in weighted mode)
+                if (newMode == ClassData.GradingMode.WEIGHTED) {
+                    double total = 0;
+                    Map<String, Double> newWeights = new HashMap<>();
+                    
+                    for (String category : weightFields.keySet()) {
+                        double weight = Double.parseDouble(weightFields.get(category).getText());
+                        if (weight < 0) {
+                            JOptionPane.showMessageDialog(dialog, "Weights cannot be negative!");
+                            return;
+                        }
+                        newWeights.put(category, weight);
+                        total += weight;
                     }
-                    newWeights.put(category, weight);
-                    total += weight;
+                    
+                    // Warn if weights don't sum to 100% in weighted mode
+                    if (Math.abs(total - 100.0) > 0.01) {
+                        boolean confirm = showCustomConfirmDialog(dialog,
+                            String.format("Weights total %.1f%% instead of 100%%. This may affect grade calculation accuracy.\\n\\nContinue anyway?", total),
+                            "Weight Warning");
+                        if (!confirm) return;
+                    }
+                    
+                    cd.weights.putAll(newWeights);
+                } else {
+                    // In total points mode, we still save weights but they won't be used in calculation
+                    for (String category : weightFields.keySet()) {
+                        try {
+                            double weight = Double.parseDouble(weightFields.get(category).getText());
+                            if (weight >= 0) {
+                                cd.weights.put(category, weight);
+                            }
+                        } catch (NumberFormatException ex) {
+                            // Ignore invalid weights in total points mode
+                        }
+                    }
                 }
                 
-                if (total != 100) {
-                    int confirm = JOptionPane.showConfirmDialog(dialog,
-                        "Weights total " + total + "% instead of 100%. Continue anyway?",
-                        "Weight Warning", JOptionPane.YES_NO_OPTION);
-                    if (confirm != JOptionPane.YES_OPTION) return;
-                }
-                
-                cd.weights.putAll(newWeights);
                 pushHistory(cd);
                 saveAllUserData();
                 
-                JOptionPane.showMessageDialog(dialog, "Weights updated successfully!");
+                String modeText = newMode == ClassData.GradingMode.WEIGHTED ? "Weighted" : "Total Points";
+                showCustomMessageDialog(dialog, 
+                    "Settings saved successfully!\\nGrading Mode: " + modeText, 
+                    "Settings Saved");
                 dialog.dispose();
                 
             } catch (NumberFormatException ex) {
@@ -3393,6 +3809,93 @@ public class CollegeGPATracker {
     /**
      * Update pie chart with all available categories
      */
+    /**
+     * Update the category breakdown display with averages and validation info
+     */
+    private static void updateCategoryBreakdown(ClassData cd, JPanel categoryPanel, JLabel gradingModeLabel) {
+        // Clear existing category labels (keep only the grading mode label)
+        Component[] components = categoryPanel.getComponents();
+        for (int i = components.length - 1; i >= 1; i--) {
+            categoryPanel.remove(i);
+        }
+        
+        // Update grading mode display
+        String modeText = cd.gradingMode == ClassData.GradingMode.WEIGHTED ? 
+            "Weighted Mode" : "Total Points Mode";
+        gradingModeLabel.setText("Mode: " + modeText);
+        
+        if (cd.assignments.isEmpty()) {
+            JLabel noCategories = new JLabel("No categories yet");
+            noCategories.setForeground(Color.GRAY);
+            noCategories.setFont(new Font("SansSerif", Font.ITALIC, 12));
+            categoryPanel.add(noCategories);
+            categoryPanel.revalidate();
+            categoryPanel.repaint();
+            return;
+        }
+        
+        // Add category averages
+        for (String category : cd.assignments.keySet()) {
+            List<Assignment> assignments = cd.assignments.get(category);
+            if (assignments != null && !assignments.isEmpty()) {
+                double categoryAvg = cd.getCategoryAverage(category);
+                double weight = cd.weights.getOrDefault(category, 0.0);
+                
+                JLabel categoryLabel = new JLabel();
+                categoryLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+                
+                String text = String.format("%s: %.1f%%", category, categoryAvg);
+                if (cd.gradingMode == ClassData.GradingMode.WEIGHTED) {
+                    text += String.format(" (%.1f%% weight)", weight);
+                }
+                
+                categoryLabel.setText(text);
+                
+                // Color code based on performance
+                if (categoryAvg >= 90) {
+                    categoryLabel.setForeground(new Color(46, 204, 113)); // Green
+                } else if (categoryAvg >= 80) {
+                    categoryLabel.setForeground(new Color(243, 156, 18)); // Orange
+                } else if (categoryAvg >= 70) {
+                    categoryLabel.setForeground(new Color(230, 126, 34)); // Dark orange
+                } else {
+                    categoryLabel.setForeground(new Color(231, 76, 60)); // Red
+                }
+                
+                categoryPanel.add(categoryLabel);
+                
+                // Check for extra credit in this category
+                boolean hasExtraCredit = assignments.stream().anyMatch(Assignment::hasExtraCredit);
+                if (hasExtraCredit) {
+                    JLabel extraCreditLabel = new JLabel("  ★ Extra credit detected");
+                    extraCreditLabel.setForeground(new Color(155, 89, 182)); // Purple
+                    extraCreditLabel.setFont(new Font("SansSerif", Font.ITALIC, 10));
+                    categoryPanel.add(extraCreditLabel);
+                }
+            }
+        }
+        
+        // Add validation warnings
+        if (cd.gradingMode == ClassData.GradingMode.WEIGHTED) {
+            double totalWeight = cd.getTotalWeight();
+            if (Math.abs(totalWeight - 100.0) > 0.01) {
+                JLabel warningLabel = new JLabel();
+                warningLabel.setFont(new Font("SansSerif", Font.BOLD, 10));
+                warningLabel.setForeground(Color.RED);
+                
+                if (totalWeight == 0) {
+                    warningLabel.setText("⚠ No weights set!");
+                } else {
+                    warningLabel.setText(String.format("⚠ Weights total %.1f%%", totalWeight));
+                }
+                categoryPanel.add(warningLabel);
+            }
+        }
+        
+        categoryPanel.revalidate();
+        categoryPanel.repaint();
+    }
+
     private static void updatePieChartWithAllCategories(ClassData cd, PiePanel piePanel) {
         // For now, still use the first 3 categories for the pie chart
         // In the future, this could be enhanced to show all categories
