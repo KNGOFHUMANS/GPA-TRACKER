@@ -35,6 +35,12 @@ import java.io.PrintWriter; // For writing formatted text to files
 import com.google.gson.Gson; // Main class for JSON serialization/deserialization
 import com.google.gson.reflect.TypeToken; // For handling complex generic types in JSON
 
+// Firebase Admin SDK imports - for cloud data sync
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.database.*;
+import java.io.FileInputStream;
+
 /**
  * CollegeGPATracker - Main application class for tracking college GPA
  * This class manages user authentication, course data, and GPA calculations
@@ -49,6 +55,14 @@ public class CollegeGPATracker {
     // Tracks when users last changed their username (for 15-day restriction)
     // Maps username -> timestamp (milliseconds since epoch)
     private static Map<String, Long> lastUsernameChange = new HashMap<>();
+    
+    // ===== FIREBASE CLOUD SYNC VARIABLES =====
+    // Firebase database reference for cloud data sync
+    private static DatabaseReference firebaseDatabase;
+    // Flag to track if Firebase is initialized and ready
+    private static boolean firebaseInitialized = false;
+    // Current user's email for cloud sync
+    private static String currentUserEmail = null;
     
     // Stores the currently logged-in user's username
     private static String currentUser;
@@ -315,6 +329,9 @@ public class CollegeGPATracker {
                 UIManager.put("OptionPane.yesButtonText", "Yes");
                 UIManager.put("OptionPane.noButtonText", "No");
                 
+                // Initialize Firebase for cloud sync
+                initializeFirebase(debugWriter);
+                
                 // All button types
                 UIManager.put("Button.foreground", Color.BLACK);
                 UIManager.put("Button.focus", Color.BLACK);
@@ -455,6 +472,270 @@ public class CollegeGPATracker {
             }
         }
     }
+
+    // ===== FIREBASE CLOUD SYNC METHODS =====
+    
+    /**
+     * Initialize Firebase for cloud data synchronization
+     */
+    private static void initializeFirebase(PrintWriter debugWriter) {
+        try {
+            debugWriter.println("DEBUG: Initializing Firebase cloud sync...");
+            
+            // Check if Firebase service account key exists
+            File serviceAccountKey = new File("graderisecloud-firebase-adminsdk-fbsvc-fb2cff8c34.json");
+            if (!serviceAccountKey.exists()) {
+                debugWriter.println("DEBUG: Firebase service account key not found - cloud sync disabled");
+                firebaseInitialized = false;
+                return;
+            }
+            
+            // Initialize Firebase App if not already done
+            if (FirebaseApp.getApps().isEmpty()) {
+                try {
+                    FileInputStream serviceAccount = new FileInputStream(serviceAccountKey);
+                    FirebaseOptions options = FirebaseOptions.builder()
+                        .setDatabaseUrl("https://graderisecloud-default-rtdb.firebaseio.com/")
+                        .build();
+                    
+                    FirebaseApp.initializeApp(options);
+                    debugWriter.println("DEBUG: Firebase App initialized successfully");
+                    serviceAccount.close();
+                } catch (Exception initEx) {
+                    debugWriter.println("DEBUG: Firebase initialization with service account failed, trying default: " + initEx.getMessage());
+                    
+                    // Fallback to default initialization
+                    FirebaseOptions options = FirebaseOptions.builder()
+                        .setDatabaseUrl("https://graderisecloud-default-rtdb.firebaseio.com/")
+                        .build();
+                    
+                    FirebaseApp.initializeApp(options);
+                    debugWriter.println("DEBUG: Firebase App initialized with default options");
+                }
+            }
+            
+            // Get database reference
+            firebaseDatabase = FirebaseDatabase.getInstance().getReference();
+            firebaseInitialized = true;
+            
+            debugWriter.println("DEBUG: Firebase cloud sync initialized successfully");
+            
+        } catch (Exception e) {
+            debugWriter.println("DEBUG: Firebase initialization failed: " + e.getMessage());
+            e.printStackTrace(debugWriter);
+            firebaseInitialized = false;
+        }
+    }
+    
+    /**
+     * Sync user data to Firebase cloud
+     */
+    private static void syncToCloud(String userEmail) {
+        if (!firebaseInitialized || userEmail == null || currentUser == null) {
+            System.out.println("DEBUG: Cloud sync skipped - Firebase not initialized or missing data");
+            return;
+        }
+        
+        try {
+            // Create user data object for cloud sync using existing userData structure
+            Map<String, Object> cloudUserData = new HashMap<>();
+            cloudUserData.put("username", currentUser);
+            cloudUserData.put("email", userEmail);
+            cloudUserData.put("lastSync", System.currentTimeMillis());
+            
+            // Get user's semester data from existing userData structure
+            Map<String, Map<String, ClassData>> userSemesters = userData.get(currentUser);
+            if (userSemesters != null) {
+                Map<String, Object> semesterData = new HashMap<>();
+                
+                for (Map.Entry<String, Map<String, ClassData>> semesterEntry : userSemesters.entrySet()) {
+                    String semesterName = semesterEntry.getKey();
+                    Map<String, ClassData> courses = semesterEntry.getValue();
+                    
+                    Map<String, Object> coursesData = new HashMap<>();
+                    for (Map.Entry<String, ClassData> courseEntry : courses.entrySet()) {
+                        String courseName = courseEntry.getKey();
+                        ClassData classData = courseEntry.getValue();
+                        
+                        Map<String, Object> courseData = new HashMap<>();
+                        courseData.put("credits", classData.credits);
+                        courseData.put("finalGrade", classData.finalGrade);
+                        courseData.put("letterGrade", classData.letterGrade);
+                        courseData.put("assignments", classData.assignments);
+                        courseData.put("weights", classData.weights);
+                        courseData.put("isActive", classData.isActive);
+                        courseData.put("historyPercent", classData.historyPercent);
+                        
+                        coursesData.put(courseName, courseData);
+                    }
+                    
+                    semesterData.put(semesterName, coursesData);
+                }
+                
+                cloudUserData.put("semesters", semesterData);
+            }
+            
+            // Sync to Firebase using email as key (sanitized for Firebase key format)
+            String firebaseKey = userEmail.replace(".", "_").replace("@", "_at_");
+            firebaseDatabase.child("users").child(firebaseKey).setValue(cloudUserData, new DatabaseReference.CompletionListener() {
+                @Override
+                public void onComplete(DatabaseError error, DatabaseReference ref) {
+                    if (error != null) {
+                        System.err.println("DEBUG: Firebase sync failed: " + error.getMessage());
+                    } else {
+                        System.out.println("DEBUG: Successfully synced data to cloud for user: " + userEmail);
+                    }
+                }
+            });
+            
+        } catch (Exception e) {
+            System.err.println("DEBUG: Failed to sync data to cloud: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Load user data from Firebase cloud
+     */
+    private static void loadFromCloud(String userEmail, Runnable onComplete) {
+        if (!firebaseInitialized || userEmail == null) {
+            System.out.println("DEBUG: Cloud load skipped - Firebase not initialized");
+            if (onComplete != null) onComplete.run();
+            return;
+        }
+        
+        try {
+            String firebaseKey = userEmail.replace(".", "_").replace("@", "_at_");
+            
+            firebaseDatabase.child("users").child(firebaseKey).addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot dataSnapshot) {
+                    try {
+                        if (dataSnapshot.exists()) {
+                            System.out.println("DEBUG: Loading cloud data for user: " + userEmail);
+                            
+                            // Load semester data
+                            DataSnapshot semesterSnapshot = dataSnapshot.child("semesters");
+                            Map<String, Map<String, ClassData>> newUserData = new HashMap<>();
+                            
+                            for (DataSnapshot semesterData : semesterSnapshot.getChildren()) {
+                                String semesterName = semesterData.getKey();
+                                Map<String, ClassData> semesterCourses = new HashMap<>();
+                                
+                                // Load courses for this semester
+                                for (DataSnapshot courseData : semesterData.getChildren()) {
+                                    String courseName = courseData.getKey();
+                                    
+                                    // Create ClassData object from cloud data
+                                    ClassData classData = new ClassData();
+                                    
+                                    if (courseData.hasChild("credits")) {
+                                        classData.credits = courseData.child("credits").getValue(Integer.class);
+                                    }
+                                    if (courseData.hasChild("finalGrade")) {
+                                        classData.finalGrade = courseData.child("finalGrade").getValue(Double.class);
+                                    }
+                                    if (courseData.hasChild("letterGrade")) {
+                                        classData.letterGrade = courseData.child("letterGrade").getValue(String.class);
+                                    }
+                                    if (courseData.hasChild("isActive")) {
+                                        classData.isActive = courseData.child("isActive").getValue(Boolean.class);
+                                    }
+                                    
+                                    // Load assignments
+                                    if (courseData.hasChild("assignments")) {
+                                        DataSnapshot assignmentsData = courseData.child("assignments");
+                                        Map<String, List<Assignment>> assignments = new HashMap<>();
+                                        
+                                        for (DataSnapshot categoryData : assignmentsData.getChildren()) {
+                                            String categoryName = categoryData.getKey();
+                                            List<Assignment> categoryAssignments = new ArrayList<>();
+                                            
+                                            for (DataSnapshot assignmentData : categoryData.getChildren()) {
+                                                // Reconstruct Assignment objects from cloud data
+                                                if (assignmentData.hasChild("name") && assignmentData.hasChild("earnedPoints") && assignmentData.hasChild("totalPoints")) {
+                                                    String name = assignmentData.child("name").getValue(String.class);
+                                                    Double earnedPoints = assignmentData.child("earnedPoints").getValue(Double.class);
+                                                    Double totalPoints = assignmentData.child("totalPoints").getValue(Double.class);
+                                                    Assignment assignment = new Assignment(name, earnedPoints, totalPoints, categoryName);
+                                                    categoryAssignments.add(assignment);
+                                                }
+                                            }
+                                            
+                                            if (!categoryAssignments.isEmpty()) {
+                                                assignments.put(categoryName, categoryAssignments);
+                                            }
+                                        }
+                                        
+                                        classData.assignments = assignments;
+                                    }
+                                    
+                                    // Load weights
+                                    if (courseData.hasChild("weights")) {
+                                        DataSnapshot weightsData = courseData.child("weights");
+                                        Map<String, Double> weights = new HashMap<>();
+                                        for (DataSnapshot weightData : weightsData.getChildren()) {
+                                            String category = weightData.getKey();
+                                            Double weight = weightData.getValue(Double.class);
+                                            weights.put(category, weight);
+                                        }
+                                        classData.weights = weights;
+                                    }
+                                    
+                                    // Load grade history
+                                    if (courseData.hasChild("historyPercent")) {
+                                        DataSnapshot historyData = courseData.child("historyPercent");
+                                        List<Double> history = new ArrayList<>();
+                                        for (DataSnapshot historyItem : historyData.getChildren()) {
+                                            Double grade = historyItem.getValue(Double.class);
+                                            if (grade != null) {
+                                                history.add(grade);
+                                            }
+                                        }
+                                        classData.historyPercent = history;
+                                    }
+                                    
+                                    semesterCourses.put(courseName, classData);
+                                }
+                                
+                                newUserData.put(semesterName, semesterCourses);
+                            }
+                            
+                            // Update local userData with cloud data
+                            if (!newUserData.isEmpty()) {
+                                userData.put(currentUser, newUserData);
+                                
+                                // Save loaded cloud data to local files
+                                saveAllUserData();
+                                
+                                System.out.println("DEBUG: Successfully loaded data from cloud");
+                            }
+                        } else {
+                            System.out.println("DEBUG: No cloud data found for user: " + userEmail);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("DEBUG: Error processing cloud data: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                    
+                    if (onComplete != null) onComplete.run();
+                }
+                
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+                    System.err.println("DEBUG: Failed to load cloud data: " + databaseError.getMessage());
+                    if (onComplete != null) onComplete.run();
+                }
+            });
+            
+        } catch (Exception e) {
+            System.err.println("DEBUG: Failed to load from cloud: " + e.getMessage());
+            e.printStackTrace();
+            if (onComplete != null) onComplete.run();
+        }
+    }
+    
+
 
     // ===== LOGIN PAGE =====
     private static void showLoginUI() {
@@ -877,14 +1158,35 @@ public class CollegeGPATracker {
                            users.putIfAbsent(useUsername, new String[]{"", email}); // empty pass = Google login
                            if (isNew) lastUsernameChange.put(useUsername, System.currentTimeMillis());
                            currentUser = useUsername;
+                           currentUserEmail = email;  // Store email for cloud sync
 
                            ensureUserStructures(currentUser);
                            saveUsers();
-                           saveAllUserData();
-                           saveSession(currentUser);  // Save login session
-
-                           frame.dispose();
-                           showDashboard();
+                           
+                           // Load cloud data before showing dashboard
+                           if (!isNew && firebaseInitialized) {
+                               // For existing users, load their cloud data first
+                               loadFromCloud(email, () -> {
+                                   SwingUtilities.invokeLater(() -> {
+                                       saveAllUserData();
+                                       saveSession(currentUser);
+                                       frame.dispose();
+                                       showDashboard();
+                                   });
+                               });
+                           } else {
+                               // For new users or when Firebase unavailable, proceed normally
+                               saveAllUserData();
+                               saveSession(currentUser);
+                               
+                               // Sync new user data to cloud if Firebase available
+                               if (firebaseInitialized) {
+                                   syncToCloud(email);
+                               }
+                               
+                               frame.dispose();
+                               showDashboard();
+                           }
                        } catch (Exception e) {
                            System.err.println("DEBUG: Google Sign-In error details:");
                            e.printStackTrace();
@@ -1120,8 +1422,27 @@ public class CollegeGPATracker {
         // Add text shadow effect
         overallGpaLabel.setBorder(new EmptyBorder(5, 5, 5, 5));
         
+        // Right side - Cloud Sync Status
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 5));
+        rightPanel.setOpaque(false);
+        
+        JLabel cloudStatusLabel = new JLabel();
+        cloudStatusLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        if (firebaseInitialized && currentUserEmail != null) {
+            cloudStatusLabel.setText("☁️ Cloud Sync: " + currentUserEmail);
+            cloudStatusLabel.setForeground(new Color(144, 238, 144)); // Light green
+            cloudStatusLabel.setToolTipText("Your data is automatically synced to the cloud");
+        } else {
+            cloudStatusLabel.setText("🔒 Local Only");
+            cloudStatusLabel.setForeground(new Color(255, 215, 0)); // Gold
+            cloudStatusLabel.setToolTipText("Data stored locally. Sign in with Google for cloud sync.");
+        }
+        
+        rightPanel.add(cloudStatusLabel);
+        
         headerPanel.add(leftPanel, BorderLayout.WEST);
         headerPanel.add(overallGpaLabel, BorderLayout.CENTER);
+        headerPanel.add(rightPanel, BorderLayout.EAST);
         
         return headerPanel;
     }
@@ -2966,6 +3287,11 @@ public class CollegeGPATracker {
         try (FileWriter fw = new FileWriter(DATA_DIR + File.separator + "semester_order.json")) {
             gson.toJson(semesterOrder, fw);
         } catch (IOException e) { e.printStackTrace(); }
+        
+        // Auto-sync to cloud when data is saved
+        if (firebaseInitialized && currentUserEmail != null && currentUser != null) {
+            syncToCloud(currentUserEmail);
+        }
     }
 
     private static void loadAllUserData() {

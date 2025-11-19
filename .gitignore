@@ -3,35 +3,63 @@
 client_secret.json
 !client_secret.json.template
 
+# Firebase credentials - NEVER commit these!
+*firebase-adminsdk*.json
+graderisecloud-firebase-adminsdk*.json
+
 # Compiled Java classes
 *.class
 
-# JAR files (but keep the final release)
+# JAR files (allow final release JARs)
 *.jar
-!GPATracker-PORT-FIXED.zip
+!GradeRise.jar
 
-# Build artifacts
+# Build artifacts and outputs
 app-image*/
 custom-runtime*/
 jpack-input*/
 minimal-jre/
 out/
+output/
+jre/
+jre-download/
+temp/
+GradeRise-Bundle/
+standalone-app/
 
-# OAuth tokens directory (contains user's actual tokens)
+# Debug and log files
+*.log
+graderise-debug.log
+
+# User data - sensitive information
+data/*.json
+!data/google_links.json
+!data/modern_theme.properties
+!data/semester_order.json
+!data/theme_config.properties
+
+# Authentication tokens
 tokens/
 
 # IDE files
-.vscode/settings.json
+.vscode/
 .idea/
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# User data
-data/
-
-# Temporary files
-*.tmp
-*.temp
-graderise-debug.log
+# Distribution scripts and temp files
+build-with-launch4j.bat
+setup-portable-jre.bat
+create-complete-jar.bat
+create-distribution.bat
+create-fat-jar.bat
+create-jar.bat
+create-jpackage-installer.bat
+create-portable-complete.bat
+create-portable-package.bat
+create-portable-single-exe.bat
+create-standalone-complete.bat
+create-standalone-exe.bat
+launch-graderise.bat
