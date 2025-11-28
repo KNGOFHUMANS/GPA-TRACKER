@@ -36,9 +36,6 @@ Google OAuth 2 desktop flow
 
 jpackage and WiX Toolset for Windows packaging
 
-How to Run
-
-Download and unzip GPAManagerApp-ready.zip.
 
 Run GPAManagerApp.exe.
 
